@@ -9,7 +9,9 @@ import {
   Mail, 
   Plus,
   ChevronDown,
-  Globe
+  Globe,
+  FileText,
+  Clock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,9 +32,11 @@ interface SidebarProps {
 
 const folders = [
   { id: 'inbox', label: 'Inbox', icon: Inbox },
-  { id: 'sent', label: 'Sent', icon: Send },
   { id: 'starred', label: 'Starred', icon: Star },
-  { id: 'archive', label: 'Archive', icon: Archive },
+  { id: 'snoozed', label: 'Snoozed', icon: Clock },
+  { id: 'sent', label: 'Sent', icon: Send },
+  { id: 'drafts', label: 'Drafts', icon: FileText },
+  { id: 'archive', label: 'All Mail', icon: Archive },
   { id: 'trash', label: 'Trash', icon: Trash2 },
 ];
 
@@ -46,30 +50,22 @@ export function Sidebar({
   const [isLabelsOpen, setIsLabelsOpen] = useState(true);
 
   return (
-    <div className="flex flex-col h-full w-64 bg-sidebar border-r border-sidebar-border">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5">
-        <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-          <Mail className="w-5 h-5 text-primary-foreground" />
-        </div>
-        <span className="text-lg font-semibold text-sidebar-foreground">FlowMail</span>
-      </div>
-
+    <div className="flex flex-col h-full w-64 bg-sidebar">
       {/* Compose Button */}
-      <div className="px-3 mb-4">
+      <div className="px-3 py-4">
         <Button 
           onClick={onCompose}
-          className="w-full gap-2 shadow-md hover:shadow-lg transition-shadow"
+          className="gap-3 px-6 py-6 rounded-2xl shadow-md hover:shadow-lg transition-all bg-accent hover:bg-accent/80 text-accent-foreground font-medium"
           size="lg"
         >
-          <Plus className="w-4 h-4" />
-          Compose
+          <Plus className="w-5 h-5" />
+          <span className="font-display">Compose</span>
         </Button>
       </div>
 
       {/* Folders */}
       <ScrollArea className="flex-1 px-2">
-        <nav className="space-y-1">
+        <nav className="space-y-0.5">
           {folders.map((folder) => {
             const Icon = folder.icon;
             const isActive = activeFolder === folder.id;
@@ -80,16 +76,22 @@ export function Sidebar({
                 key={folder.id}
                 onClick={() => onFolderChange(folder.id)}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                  "w-full flex items-center gap-4 pl-6 pr-3 py-2 rounded-r-full text-sm transition-all duration-150",
                   isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/50"
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-sidebar-foreground hover:bg-secondary"
                 )}
               >
-                <Icon className={cn("w-5 h-5", isActive && "text-primary")} />
-                <span className="flex-1 text-left">{folder.label}</span>
+                <Icon className={cn(
+                  "w-5 h-5 shrink-0",
+                  isActive ? "text-accent-foreground" : "text-muted-foreground"
+                )} />
+                <span className="flex-1 text-left truncate">{folder.label}</span>
                 {showBadge && (
-                  <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-primary text-primary-foreground">
+                  <span className={cn(
+                    "text-xs font-medium tabular-nums",
+                    isActive ? "text-accent-foreground" : "text-foreground"
+                  )}>
                     {unreadCount}
                   </span>
                 )}
@@ -100,21 +102,21 @@ export function Sidebar({
 
         {/* Labels Section */}
         <Collapsible open={isLabelsOpen} onOpenChange={setIsLabelsOpen} className="mt-6">
-          <CollapsibleTrigger className="flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full">
+          <CollapsibleTrigger className="flex items-center gap-3 pl-6 pr-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full">
             <ChevronDown className={cn("w-4 h-4 transition-transform", !isLabelsOpen && "-rotate-90")} />
             Labels
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-1 mt-1">
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
-              <div className="w-2.5 h-2.5 rounded-full bg-success" />
+          <CollapsibleContent className="space-y-0.5 mt-1">
+            <button className="w-full flex items-center gap-4 pl-6 pr-3 py-2 rounded-r-full text-sm text-sidebar-foreground hover:bg-secondary transition-colors">
+              <div className="w-3 h-3 rounded-sm bg-success" />
               Work
             </button>
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
-              <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+            <button className="w-full flex items-center gap-4 pl-6 pr-3 py-2 rounded-r-full text-sm text-sidebar-foreground hover:bg-secondary transition-colors">
+              <div className="w-3 h-3 rounded-sm bg-primary" />
               Personal
             </button>
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors">
-              <div className="w-2.5 h-2.5 rounded-full bg-warning" />
+            <button className="w-full flex items-center gap-4 pl-6 pr-3 py-2 rounded-r-full text-sm text-sidebar-foreground hover:bg-secondary transition-colors">
+              <div className="w-3 h-3 rounded-sm bg-warning" />
               Important
             </button>
           </CollapsibleContent>
@@ -122,19 +124,19 @@ export function Sidebar({
       </ScrollArea>
 
       {/* Bottom Actions */}
-      <div className="p-3 border-t border-sidebar-border space-y-1">
+      <div className="p-3 border-t border-sidebar-border space-y-0.5">
         <button
           onClick={onSettingsClick}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+          className="w-full flex items-center gap-4 pl-6 pr-3 py-2 rounded-r-full text-sm text-sidebar-foreground hover:bg-secondary transition-colors"
         >
-          <Globe className="w-5 h-5" />
+          <Globe className="w-5 h-5 text-muted-foreground" />
           Domains
         </button>
         <button
           onClick={onSettingsClick}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+          className="w-full flex items-center gap-4 pl-6 pr-3 py-2 rounded-r-full text-sm text-sidebar-foreground hover:bg-secondary transition-colors"
         >
-          <Settings className="w-5 h-5" />
+          <Settings className="w-5 h-5 text-muted-foreground" />
           Settings
         </button>
       </div>

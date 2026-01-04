@@ -5,9 +5,11 @@ import {
   Trash2, 
   Reply, 
   Forward, 
-  MoreHorizontal,
+  MoreVertical,
   ArrowLeft,
-  Paperclip
+  Printer,
+  ExternalLink,
+  ReplyAll
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Email } from '@/integrations/supabase/client';
@@ -18,6 +20,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -39,99 +42,135 @@ export function EmailView({
   onReply 
 }: EmailViewProps) {
   const senderName = email.from_name || email.from_email.split('@')[0];
-  const senderInitials = senderName.slice(0, 2).toUpperCase();
-  const formattedDate = format(new Date(email.received_at), 'MMMM d, yyyy \'at\' h:mm a');
+  const senderInitials = senderName.slice(0, 1).toUpperCase();
+  const formattedDate = format(new Date(email.received_at), 'MMM d, yyyy, h:mm a');
+
+  // Generate a consistent color based on sender name
+  const colors = [
+    'bg-red-500', 'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 
+    'bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-green-500',
+    'bg-orange-500', 'bg-amber-500'
+  ];
+  const colorIndex = senderName.charCodeAt(0) % colors.length;
+  const avatarColor = colors[colorIndex];
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-border gap-2">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          <Button variant="ghost" size="icon" onClick={onBack} className="sm:hidden shrink-0">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h2 className="text-sm sm:text-lg font-semibold truncate">{email.subject}</h2>
-        </div>
+      {/* Toolbar */}
+      <div className="flex items-center px-2 sm:px-4 py-2 border-b border-border bg-card gap-1">
+        <Button variant="ghost" size="icon" onClick={onBack} className="sm:hidden mr-1 h-10 w-10">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
         
-        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-          <Button variant="ghost" size="icon" onClick={onToggleStar} className="h-8 w-8 sm:h-10 sm:w-10">
-            <Star className={cn(
-              "w-4 h-4 sm:w-5 sm:h-5",
-              email.is_starred ? "fill-warning text-warning" : ""
-            )} />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onArchive} className="h-8 w-8 sm:h-10 sm:w-10 hidden xs:flex">
-            <Archive className="w-4 h-4 sm:w-5 sm:h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8 sm:h-10 sm:w-10 hidden xs:flex">
-            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
-                <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>Mark as unread</DropdownMenuItem>
-              <DropdownMenuItem>Add label</DropdownMenuItem>
-              <DropdownMenuItem onClick={onArchive} className="xs:hidden">Archive</DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="xs:hidden text-destructive">Delete</DropdownMenuItem>
-              <DropdownMenuItem>Report spam</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <Button variant="ghost" size="icon" onClick={onArchive} className="h-10 w-10 text-muted-foreground hover:text-foreground">
+          <Archive className="w-5 h-5" />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={onDelete} className="h-10 w-10 text-muted-foreground hover:text-foreground">
+          <Trash2 className="w-5 h-5" />
+        </Button>
+        
+        <div className="flex-1" />
+        
+        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground hidden sm:flex">
+          <Printer className="w-5 h-5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground hidden sm:flex">
+          <ExternalLink className="w-5 h-5" />
+        </Button>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground">
+              <MoreVertical className="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem>Mark as unread</DropdownMenuItem>
+            <DropdownMenuItem>Add star</DropdownMenuItem>
+            <DropdownMenuItem>Create filter</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>Mute</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive">Report spam</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Email Content */}
       <ScrollArea className="flex-1">
-        <div className="p-4 sm:p-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Subject */}
+          <div className="flex items-start justify-between gap-4 px-4 sm:px-6 pt-6 pb-4">
+            <h1 className="text-xl sm:text-2xl font-display font-normal text-foreground leading-tight">
+              {email.subject}
+            </h1>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onToggleStar}
+              className="shrink-0 h-10 w-10 text-muted-foreground hover:text-foreground"
+            >
+              <Star className={cn(
+                "w-5 h-5",
+                email.is_starred ? "fill-warning text-warning" : ""
+              )} />
+            </Button>
+          </div>
+
           {/* Sender Info */}
-          <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
-            <Avatar className="w-10 h-10 sm:w-12 sm:h-12 shrink-0">
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm sm:text-base">
+          <div className="flex items-start gap-3 sm:gap-4 px-4 sm:px-6 pb-6">
+            <Avatar className={cn("w-10 h-10 shrink-0", avatarColor)}>
+              <AvatarFallback className="text-white font-medium text-base">
                 {senderInitials}
               </AvatarFallback>
             </Avatar>
             
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{senderName}</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{email.from_email}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium text-sm text-foreground">{senderName}</span>
+                  <span className="text-sm text-muted-foreground truncate">&lt;{email.from_email}&gt;</span>
                 </div>
-                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {formattedDate}
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">
-                To: {email.to_email}
+              <p className="text-xs text-muted-foreground mt-0.5">
+                to {email.to_email.split('@')[0]}
               </p>
             </div>
           </div>
 
           {/* Email Body */}
-          <div className="prose prose-sm max-w-none dark:prose-invert text-sm sm:text-base">
-            {email.body_html ? (
-              <div 
-                dangerouslySetInnerHTML={{ __html: email.body_html }}
-                className="email-content overflow-x-auto"
-              />
-            ) : (
-              <div className="whitespace-pre-wrap break-words">{email.body_text}</div>
-            )}
+          <div className="px-4 sm:px-6 pb-8">
+            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed">
+              {email.body_html ? (
+                <div 
+                  dangerouslySetInnerHTML={{ __html: email.body_html }}
+                  className="email-content"
+                />
+              ) : (
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">{email.body_text}</div>
+              )}
+            </div>
           </div>
         </div>
       </ScrollArea>
 
-      {/* Reply Bar */}
-      <div className="border-t border-border p-3 sm:p-4">
-        <div className="flex items-center gap-2">
-          <Button onClick={onReply} className="gap-2 text-sm flex-1 sm:flex-none">
+      {/* Reply Actions */}
+      <div className="border-t border-border p-4 bg-card">
+        <div className="max-w-4xl mx-auto flex items-center gap-2">
+          <Button 
+            onClick={onReply} 
+            variant="outline"
+            className="gap-2 rounded-full px-6 text-sm font-medium"
+          >
             <Reply className="w-4 h-4" />
             Reply
           </Button>
-          <Button variant="outline" className="gap-2 text-sm flex-1 sm:flex-none">
+          <Button 
+            variant="outline"
+            className="gap-2 rounded-full px-6 text-sm font-medium"
+          >
             <Forward className="w-4 h-4" />
             Forward
           </Button>
