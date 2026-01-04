@@ -149,15 +149,15 @@ export function EmailView({
           </div>
 
           {/* Email Body */}
-          <div className="px-4 sm:px-6 pb-8">
-            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed">
+          <div className="px-4 sm:px-6 pb-8 overflow-x-hidden">
+            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed overflow-hidden break-words">
               {cleanHtml ? (
                 <div 
                   dangerouslySetInnerHTML={{ __html: cleanHtml }}
-                  className="email-content"
+                  className="email-content overflow-x-auto [&_*]:max-w-full [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full [&_pre]:overflow-x-auto [&_pre]:max-w-full"
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">{cleanText}</div>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words">{cleanText}</div>
               )}
             </div>
           </div>
