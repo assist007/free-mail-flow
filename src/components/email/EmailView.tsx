@@ -135,14 +135,14 @@ export function EmailView({
             <div className="flex-1 min-w-0">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium text-sm text-foreground">{senderName}</span>
+                  <span className="font-medium text-sm text-foreground truncate">{senderName}</span>
                   <span className="text-sm text-muted-foreground truncate">&lt;{email.from_email}&gt;</span>
                 </div>
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {formattedDate}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 to {email.to_email.split('@')[0]}
               </p>
             </div>

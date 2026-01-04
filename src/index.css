@@ -179,13 +179,45 @@
 /* Email content styles */
 .email-content {
   line-height: 1.6;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.email-content * {
+  max-width: 100%;
+}
+
+/* Force wrapping for common inline/content elements (pre/code handled below) */
+.email-content p,
+.email-content div,
+.email-content span,
+.email-content td,
+.email-content th {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal !important;
 }
 
 .email-content a {
   @apply text-primary hover:underline;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .email-content img {
   max-width: 100%;
   height: auto;
+}
+
+.email-content table {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.email-content pre,
+.email-content code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
