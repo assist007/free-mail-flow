@@ -149,15 +149,16 @@ export function EmailView({
           </div>
 
           {/* Email Body */}
-          <div className="px-4 sm:px-6 pb-8 overflow-x-hidden">
-            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed overflow-hidden break-words">
+          <div className="px-4 sm:px-6 pb-8 overflow-hidden w-full">
+            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed overflow-hidden break-words w-full">
               {cleanHtml ? (
                 <div 
                   dangerouslySetInnerHTML={{ __html: cleanHtml }}
-                  className="email-content overflow-x-auto [&_*]:max-w-full [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full [&_pre]:overflow-x-auto [&_pre]:max-w-full"
+                  className="email-content overflow-x-auto break-words [&_*]:max-w-full [&_*]:overflow-wrap-anywhere [&_*]:word-break-break-word [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full [&_table]:table-fixed [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_p]:break-words [&_span]:break-words [&_div]:break-words"
+                  style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words">{cleanText}</div>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{cleanText}</div>
               )}
             </div>
           </div>
