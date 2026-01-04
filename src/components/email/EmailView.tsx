@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { useMemo } from 'react';
 import { 
   Star, 
   Archive, 
@@ -12,6 +13,7 @@ import {
   ReplyAll
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { parseEmailBody } from '@/lib/email-parser';
 import { Email } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -44,6 +46,12 @@ export function EmailView({
   const senderName = email.from_name || email.from_email.split('@')[0];
   const senderInitials = senderName.slice(0, 1).toUpperCase();
   const formattedDate = format(new Date(email.received_at), 'MMM d, yyyy, h:mm a');
+
+  // Parse email body to extract clean content
+  const { text: cleanText, html: cleanHtml } = useMemo(
+    () => parseEmailBody(email.body_text, email.body_html),
+    [email.body_text, email.body_html]
+  );
 
   // Generate a consistent color based on sender name
   const colors = [
@@ -143,13 +151,13 @@ export function EmailView({
           {/* Email Body */}
           <div className="px-4 sm:px-6 pb-8">
             <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed">
-              {email.body_html ? (
+              {cleanHtml ? (
                 <div 
-                  dangerouslySetInnerHTML={{ __html: email.body_html }}
+                  dangerouslySetInnerHTML={{ __html: cleanHtml }}
                   className="email-content"
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">{email.body_text}</div>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">{cleanText}</div>
               )}
             </div>
           </div>
