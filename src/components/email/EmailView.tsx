@@ -66,7 +66,7 @@ export function EmailView({
     <div className="flex flex-col h-full w-full bg-background">
       {/* Toolbar */}
       <div className="flex items-center px-2 sm:px-4 py-2 border-b border-border bg-card gap-1">
-        <Button variant="ghost" size="icon" onClick={onBack} className="lg:hidden mr-1 h-10 w-10">
+        <Button variant="ghost" size="icon" onClick={onBack} className="mr-1 h-10 w-10">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         
