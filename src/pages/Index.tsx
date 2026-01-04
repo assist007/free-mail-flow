@@ -215,8 +215,8 @@ const Index = () => {
             />
           ) : (
             <div className="flex-1 flex min-h-0">
-              {/* Email List */}
-              <div className={`w-full sm:w-80 md:w-[420px] lg:w-[480px] border-r border-border flex flex-col bg-card ${selectedEmail ? 'hidden sm:flex' : ''}`}>
+              {/* Email List - Full width on mobile when no email selected */}
+              <div className={`w-full lg:w-80 xl:w-[420px] 2xl:w-[480px] border-r border-border flex flex-col bg-card ${selectedEmail ? 'hidden lg:flex' : 'flex'}`}>
                 <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium capitalize">{activeFolder}</span>
@@ -234,8 +234,8 @@ const Index = () => {
                 />
               </div>
 
-              {/* Email View */}
-              <div className={`flex-1 ${!selectedEmail ? 'hidden sm:flex' : 'flex'}`}>
+              {/* Email View - Full width on mobile when email selected */}
+              <div className={`flex-1 ${!selectedEmail ? 'hidden lg:flex' : 'flex'}`}>
                 {selectedEmail ? (
                   <EmailView
                     email={selectedEmail}
