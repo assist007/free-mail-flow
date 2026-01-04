@@ -215,28 +215,29 @@ const Index = () => {
             />
           ) : (
             <div className="flex-1 flex min-h-0">
-              {/* Email List */}
-              <div className={`w-full lg:w-80 xl:w-[420px] 2xl:w-[480px] border-r border-border flex flex-col bg-card ${selectedEmail ? 'hidden lg:flex' : ''}`}>
-                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium capitalize">{activeFolder}</span>
+              {/* Single Panel Layout - Either Email List OR Email View */}
+              {!selectedEmail ? (
+                // Full width inbox list when no email selected
+                <div className="w-full flex flex-col bg-card">
+                  <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium capitalize">{activeFolder}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {filteredEmails.length} {filteredEmails.length === 1 ? 'email' : 'emails'}
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {filteredEmails.length} {filteredEmails.length === 1 ? 'email' : 'emails'}
-                  </span>
+                  <EmailList
+                    emails={filteredEmails}
+                    selectedId={selectedEmail?.id}
+                    onSelect={handleSelectEmail}
+                    onToggleStar={handleToggleStar}
+                    loading={loading}
+                  />
                 </div>
-                <EmailList
-                  emails={filteredEmails}
-                  selectedId={selectedEmail?.id}
-                  onSelect={handleSelectEmail}
-                  onToggleStar={handleToggleStar}
-                  loading={loading}
-                />
-              </div>
-
-              {/* Email View */}
-              <div className={`flex-1 ${!selectedEmail ? 'hidden lg:flex' : 'flex'}`}>
-                {selectedEmail ? (
+              ) : (
+                // Full width email view when email selected
+                <div className="w-full flex flex-col">
                   <EmailView
                     email={selectedEmail}
                     onBack={() => setSelectedEmail(null)}
@@ -245,18 +246,8 @@ const Index = () => {
                     onDelete={handleDelete}
                     onReply={() => setIsComposeOpen(true)}
                   />
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground p-4 bg-background">
-                    <div className="text-center">
-                      <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-muted flex items-center justify-center">
-                        <Search className="w-12 h-12 text-muted-foreground/40" />
-                      </div>
-                      <p className="text-lg font-display font-medium text-foreground">Select an item to read</p>
-                      <p className="text-sm mt-2 text-muted-foreground">Nothing is selected</p>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
