@@ -56,39 +56,41 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const selectedDomain = domains.find(d => d.id === selectedDomainId);
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full w-full flex flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-        <div>
-          <h2 className="text-xl font-semibold">Domain Settings</h2>
-          <p className="text-sm text-muted-foreground">Manage your email domains and addresses</p>
+      <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border gap-2">
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-semibold truncate">Domain Settings</h2>
+          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Manage your email domains and addresses</p>
         </div>
-        <Button variant="ghost" onClick={onClose}>Close</Button>
+        <Button variant="ghost" onClick={onClose} size="sm">Close</Button>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Webhook URL */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Webhook URL</CardTitle>
-              <CardDescription>
-                Configure this URL in your email routing service (Cloudflare, Mailgun, etc.)
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg">Webhook URL</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Configure this URL in your email routing service
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Input 
                   value={webhookUrl} 
                   readOnly 
-                  className="font-mono text-sm bg-muted"
+                  className="font-mono text-xs sm:text-sm bg-muted flex-1"
                 />
                 <Button 
                   variant="outline" 
-                  size="icon"
+                  size="sm"
                   onClick={() => copyToClipboard(webhookUrl)}
+                  className="shrink-0"
                 >
-                  <Copy className="w-4 h-4" />
+                  <Copy className="w-4 h-4 mr-2 sm:mr-0" />
+                  <span className="sm:hidden">Copy</span>
                 </Button>
               </div>
             </CardContent>
@@ -96,24 +98,25 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
 
           {/* Add Domain */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Globe className="w-5 h-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
                 Add Domain
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs sm:text-sm">
                 Add a custom domain to receive emails
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <Input
                   placeholder="example.com"
                   value={newDomain}
                   onChange={(e) => setNewDomain(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
+                  className="flex-1"
                 />
-                <Button onClick={handleAddDomain} disabled={addingDomain}>
+                <Button onClick={handleAddDomain} disabled={addingDomain} size="sm" className="shrink-0">
                   <Plus className="w-4 h-4 mr-2" />
                   Add
                 </Button>
@@ -123,8 +126,8 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
 
           {/* Domain List */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Your Domains</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg">Your Domains</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -139,24 +142,24 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
                   <p>No domains added yet</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {domains.map((domain) => (
                     <div
                       key={domain.id}
-                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer gap-2 sm:gap-4"
                       onClick={() => setSelectedDomainId(domain.id)}
                     >
-                      <div className="flex items-center gap-3">
-                        <Globe className="w-5 h-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{domain.domain}</p>
-                          <p className="text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm sm:text-base truncate">{domain.domain}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground">
                             Added {new Date(domain.created_at).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={domain.is_verified ? 'default' : 'secondary'}>
+                      <div className="flex items-center justify-between sm:justify-end gap-2 pl-6 sm:pl-0">
+                        <Badge variant={domain.is_verified ? 'default' : 'secondary'} className="text-xs">
                           {domain.is_verified ? (
                             <><Check className="w-3 h-3 mr-1" /> Verified</>
                           ) : (
@@ -166,6 +169,7 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteDomain(domain.id);

@@ -72,21 +72,21 @@ interface EmailListItemProps {
 
 function EmailListItem({ email, isSelected, onSelect, onToggleStar }: EmailListItemProps) {
   const senderName = email.from_name || email.from_email.split('@')[0];
-  const preview = email.body_text?.slice(0, 100) || email.body_html?.replace(/<[^>]*>/g, '').slice(0, 100) || '';
+  const preview = email.body_text?.slice(0, 80) || email.body_html?.replace(/<[^>]*>/g, '').slice(0, 80) || '';
   const timeAgo = formatDistanceToNow(new Date(email.received_at), { addSuffix: true });
 
   return (
     <div
       onClick={onSelect}
       className={cn(
-        "group px-4 py-3.5 cursor-pointer transition-all duration-200 hover:bg-accent/50",
+        "group px-3 sm:px-4 py-3 sm:py-3.5 cursor-pointer transition-all duration-200 hover:bg-accent/50",
         isSelected && "bg-accent",
         !email.is_read && "bg-primary/5"
       )}
     >
-      <div className="flex items-start gap-3">
-        {/* Checkbox */}
-        <div className="pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-start gap-2 sm:gap-3">
+        {/* Checkbox - hidden on mobile */}
+        <div className="pt-1 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block">
           <Checkbox onClick={(e) => e.stopPropagation()} />
         </div>
 
@@ -96,7 +96,7 @@ function EmailListItem({ email, isSelected, onSelect, onToggleStar }: EmailListI
             e.stopPropagation();
             onToggleStar();
           }}
-          className="pt-1 transition-colors"
+          className="pt-0.5 sm:pt-1 transition-colors shrink-0"
         >
           <Star
             className={cn(
@@ -110,32 +110,29 @@ function EmailListItem({ email, isSelected, onSelect, onToggleStar }: EmailListI
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center justify-between gap-2 mb-0.5 sm:mb-1">
             <span className={cn(
-              "text-sm truncate",
+              "text-xs sm:text-sm truncate",
               !email.is_read ? "font-semibold text-foreground" : "text-foreground/80"
             )}>
               {senderName}
             </span>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
+            <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap shrink-0">
               {timeAgo}
             </span>
           </div>
           
           <h4 className={cn(
-            "text-sm truncate mb-1",
+            "text-xs sm:text-sm truncate mb-0.5 sm:mb-1",
             !email.is_read ? "font-medium text-foreground" : "text-foreground/80"
           )}>
             {email.subject}
           </h4>
           
-          <p className="text-xs text-muted-foreground truncate">
+          <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
             {preview}
           </p>
         </div>
-
-        {/* Attachment indicator */}
-        {/* We'll add attachment check later */}
       </div>
     </div>
   );

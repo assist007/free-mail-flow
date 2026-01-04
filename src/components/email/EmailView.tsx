@@ -43,38 +43,40 @@ export function EmailView({
   const formattedDate = format(new Date(email.received_at), 'MMMM d, yyyy \'at\' h:mm a');
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full w-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-border gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <Button variant="ghost" size="icon" onClick={onBack} className="sm:hidden shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h2 className="text-lg font-semibold truncate max-w-md">{email.subject}</h2>
+          <h2 className="text-sm sm:text-lg font-semibold truncate">{email.subject}</h2>
         </div>
         
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={onToggleStar}>
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+          <Button variant="ghost" size="icon" onClick={onToggleStar} className="h-8 w-8 sm:h-10 sm:w-10">
             <Star className={cn(
-              "w-5 h-5",
+              "w-4 h-4 sm:w-5 sm:h-5",
               email.is_starred ? "fill-warning text-warning" : ""
             )} />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onArchive}>
-            <Archive className="w-5 h-5" />
+          <Button variant="ghost" size="icon" onClick={onArchive} className="h-8 w-8 sm:h-10 sm:w-10 hidden xs:flex">
+            <Archive className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={onDelete}>
-            <Trash2 className="w-5 h-5" />
+          <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8 sm:h-10 sm:w-10 hidden xs:flex">
+            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <MoreHorizontal className="w-5 h-5" />
+              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
+                <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem>Mark as unread</DropdownMenuItem>
               <DropdownMenuItem>Add label</DropdownMenuItem>
+              <DropdownMenuItem onClick={onArchive} className="xs:hidden">Archive</DropdownMenuItem>
+              <DropdownMenuItem onClick={onDelete} className="xs:hidden text-destructive">Delete</DropdownMenuItem>
               <DropdownMenuItem>Report spam</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -83,53 +85,53 @@ export function EmailView({
 
       {/* Email Content */}
       <ScrollArea className="flex-1">
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {/* Sender Info */}
-          <div className="flex items-start gap-4 mb-6">
-            <Avatar className="w-12 h-12">
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+          <div className="flex items-start gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <Avatar className="w-10 h-10 sm:w-12 sm:h-12 shrink-0">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm sm:text-base">
                 {senderInitials}
               </AvatarFallback>
             </Avatar>
             
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <h3 className="font-semibold text-foreground">{senderName}</h3>
-                  <p className="text-sm text-muted-foreground">{email.from_email}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-foreground text-sm sm:text-base truncate">{senderName}</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">{email.from_email}</p>
                 </div>
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
                   {formattedDate}
                 </span>
               </div>
-              <p className="text-sm text-muted-foreground mt-1">
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1 truncate">
                 To: {email.to_email}
               </p>
             </div>
           </div>
 
           {/* Email Body */}
-          <div className="prose prose-sm max-w-none dark:prose-invert">
+          <div className="prose prose-sm max-w-none dark:prose-invert text-sm sm:text-base">
             {email.body_html ? (
               <div 
                 dangerouslySetInnerHTML={{ __html: email.body_html }}
-                className="email-content"
+                className="email-content overflow-x-auto"
               />
             ) : (
-              <div className="whitespace-pre-wrap">{email.body_text}</div>
+              <div className="whitespace-pre-wrap break-words">{email.body_text}</div>
             )}
           </div>
         </div>
       </ScrollArea>
 
       {/* Reply Bar */}
-      <div className="border-t border-border p-4">
+      <div className="border-t border-border p-3 sm:p-4">
         <div className="flex items-center gap-2">
-          <Button onClick={onReply} className="gap-2">
+          <Button onClick={onReply} className="gap-2 text-sm flex-1 sm:flex-none">
             <Reply className="w-4 h-4" />
             Reply
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2 text-sm flex-1 sm:flex-none">
             <Forward className="w-4 h-4" />
             Forward
           </Button>
