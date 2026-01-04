@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, RefreshCw, Moon, Sun } from 'lucide-react';
+import { Search, RefreshCw, Moon, Sun, Menu, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Sidebar } from '@/components/email/Sidebar';
@@ -10,6 +10,7 @@ import { DomainSettings } from '@/components/email/DomainSettings';
 import { useEmails } from '@/hooks/useEmails';
 import { Email, supabaseUrl } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const Index = () => {
   const [activeFolder, setActiveFolder] = useState('inbox');
@@ -18,6 +19,7 @@ const Index = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDark, setIsDark] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   const { toast } = useToast();
   const { 
@@ -102,37 +104,78 @@ const Index = () => {
 
   const webhookUrl = `${supabaseUrl}/functions/v1/receive-email`;
 
+  const handleMobileFolderChange = (folder: string) => {
+    setActiveFolder(folder);
+    setSelectedEmail(null);
+    setIsMobileSidebarOpen(false);
+  };
+
+  const handleMobileCompose = () => {
+    setIsComposeOpen(true);
+    setIsMobileSidebarOpen(false);
+  };
+
+  const handleMobileSettings = () => {
+    setIsSettingsOpen(true);
+    setIsMobileSidebarOpen(false);
+  };
+
   return (
     <div className="h-screen flex bg-background">
-      {/* Sidebar */}
-      <Sidebar
-        activeFolder={activeFolder}
-        onFolderChange={(folder) => {
-          setActiveFolder(folder);
-          setSelectedEmail(null);
-        }}
-        onCompose={() => setIsComposeOpen(true)}
-        onSettingsClick={() => setIsSettingsOpen(true)}
-        unreadCount={unreadCount}
-      />
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block">
+        <Sidebar
+          activeFolder={activeFolder}
+          onFolderChange={(folder) => {
+            setActiveFolder(folder);
+            setSelectedEmail(null);
+          }}
+          onCompose={() => setIsComposeOpen(true)}
+          onSettingsClick={() => setIsSettingsOpen(true)}
+          unreadCount={unreadCount}
+        />
+      </div>
+
+      {/* Mobile Sidebar Sheet */}
+      <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-64">
+          <Sidebar
+            activeFolder={activeFolder}
+            onFolderChange={handleMobileFolderChange}
+            onCompose={handleMobileCompose}
+            onSettingsClick={handleMobileSettings}
+            unreadCount={unreadCount}
+          />
+        </SheetContent>
+      </Sheet>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card">
-          <div className="flex items-center gap-4 flex-1 max-w-xl">
+        <header className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-border bg-card gap-2">
+          {/* Mobile Menu Button */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="lg:hidden shrink-0"
+            onClick={() => setIsMobileSidebarOpen(true)}
+          >
+            <Menu className="w-5 h-5" />
+          </Button>
+
+          <div className="flex items-center gap-2 sm:gap-4 flex-1 max-w-xl">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search emails..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-background"
+                className="pl-10 bg-background text-sm"
               />
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <Button variant="ghost" size="icon" onClick={refetch} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
@@ -152,10 +195,10 @@ const Index = () => {
           ) : (
             <>
               {/* Email List */}
-              <div className={`w-full md:w-96 border-r border-border flex flex-col ${selectedEmail ? 'hidden md:flex' : ''}`}>
-                <div className="px-4 py-3 border-b border-border">
-                  <h1 className="text-lg font-semibold capitalize">{activeFolder}</h1>
-                  <p className="text-sm text-muted-foreground">
+              <div className={`w-full sm:w-80 md:w-96 border-r border-border flex flex-col ${selectedEmail ? 'hidden sm:flex' : ''}`}>
+                <div className="px-3 sm:px-4 py-3 border-b border-border">
+                  <h1 className="text-base sm:text-lg font-semibold capitalize">{activeFolder}</h1>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     {filteredEmails.length} {filteredEmails.length === 1 ? 'email' : 'emails'}
                   </p>
                 </div>
@@ -169,7 +212,7 @@ const Index = () => {
               </div>
 
               {/* Email View */}
-              <div className={`flex-1 ${!selectedEmail ? 'hidden md:flex' : 'flex'}`}>
+              <div className={`flex-1 ${!selectedEmail ? 'hidden sm:flex' : 'flex'}`}>
                 {selectedEmail ? (
                   <EmailView
                     email={selectedEmail}
@@ -180,13 +223,13 @@ const Index = () => {
                     onReply={() => setIsComposeOpen(true)}
                   />
                 ) : (
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground p-4">
                     <div className="text-center">
-                      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-                        <Search className="w-10 h-10 opacity-50" />
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                        <Search className="w-8 h-8 sm:w-10 sm:h-10 opacity-50" />
                       </div>
-                      <p className="text-lg font-medium">Select an email to read</p>
-                      <p className="text-sm mt-1">Choose an email from the list</p>
+                      <p className="text-base sm:text-lg font-medium">Select an email to read</p>
+                      <p className="text-xs sm:text-sm mt-1">Choose an email from the list</p>
                     </div>
                   </div>
                 )}
