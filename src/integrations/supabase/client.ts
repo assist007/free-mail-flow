@@ -130,13 +130,61 @@ export type EmailAddressInsert = {
   created_at?: string
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: typeof window !== 'undefined' ? localStorage : undefined,
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+const missingEnvMessage =
+  'Missing Cloud environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in project secrets.';
+
+type StubResult = { data: null; error: Error };
+
+function createStubQuery(): any {
+  const p: Promise<StubResult> = Promise.resolve({
+    data: null,
+    error: new Error(missingEnvMessage),
+  });
+
+  const q: any = {
+    select: () => q,
+    order: () => q,
+    eq: () => q,
+    update: () => q,
+    insert: () => q,
+    delete: () => q,
+    single: () => q,
+    maybeSingle: () => q,
+    then: p.then.bind(p),
+    catch: p.catch.bind(p),
+    finally: p.finally.bind(p),
+  };
+
+  return q;
+}
+
+function createStubClient(): any {
+  return {
+    from: () => createStubQuery(),
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: new Error(missingEnvMessage) }),
+    },
+    functions: {
+      invoke: async () => ({ data: null, error: new Error(missingEnvMessage) }),
+    },
+    storage: {
+      from: () => ({
+        upload: async () => ({ data: null, error: new Error(missingEnvMessage) }),
+        download: async () => ({ data: null, error: new Error(missingEnvMessage) }),
+      }),
+    },
+  };
+}
+
+export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : createStubClient();
