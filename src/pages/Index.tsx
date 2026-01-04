@@ -8,7 +8,7 @@ import { EmailView } from '@/components/email/EmailView';
 import { ComposeModal } from '@/components/email/ComposeModal';
 import { DomainSettings } from '@/components/email/DomainSettings';
 import { useEmails } from '@/hooks/useEmails';
-import { Email } from '@/integrations/supabase/client';
+import { Email, supabaseUrl } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
@@ -100,7 +100,7 @@ const Index = () => {
     }
   };
 
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/receive-email`;
+  const webhookUrl = `${supabaseUrl}/functions/v1/receive-email`;
 
   return (
     <div className="h-screen flex bg-background">
