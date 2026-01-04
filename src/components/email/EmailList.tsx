@@ -89,17 +89,15 @@ function EmailListItem({ email, isSelected, onSelect, onToggleStar }: EmailListI
     <div
       onClick={onSelect}
       className={cn(
-        "group flex items-center px-2 sm:px-3 py-2 cursor-pointer transition-colors hover:shadow-[inset_1px_0_0_#dadce0,inset_-1px_0_0_#dadce0,0_1px_2px_0_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)]",
+        "group flex items-center px-2 sm:px-3 py-2 cursor-pointer transition-colors min-w-0",
+        "hover:shadow-[inset_1px_0_0_#dadce0,inset_-1px_0_0_#dadce0,0_1px_2px_0_rgba(60,64,67,.3),0_1px_3px_1px_rgba(60,64,67,.15)]",
         isSelected && "bg-accent",
         !email.is_read ? "bg-card" : "bg-background"
       )}
     >
-      {/* Checkbox */}
-      <div className="pr-2 sm:pr-3 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Checkbox 
-          onClick={(e) => e.stopPropagation()} 
-          className="rounded-sm"
-        />
+      {/* Checkbox (desktop only) */}
+      <div className="hidden sm:block pr-2 sm:pr-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Checkbox onClick={(e) => e.stopPropagation()} className="rounded-sm" />
       </div>
 
       {/* Star */}
@@ -108,7 +106,7 @@ function EmailListItem({ email, isSelected, onSelect, onToggleStar }: EmailListI
           e.stopPropagation();
           onToggleStar();
         }}
-        className="pr-2 sm:pr-3 transition-colors"
+        className="pr-2 sm:pr-3 transition-colors shrink-0"
       >
         <Star
           className={cn(
@@ -120,34 +118,73 @@ function EmailListItem({ email, isSelected, onSelect, onToggleStar }: EmailListI
         />
       </button>
 
-      {/* Sender */}
-      <div className={cn(
-        "w-40 sm:w-48 shrink-0 pr-3 truncate text-sm",
-        !email.is_read ? "font-semibold text-foreground" : "text-foreground/70"
-      )}>
-        {senderName}
+      {/* Mobile layout */}
+      <div className="sm:hidden flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={cn(
+              "truncate text-sm",
+              !email.is_read ? "font-semibold text-foreground" : "text-foreground/70"
+            )}
+          >
+            {senderName}
+          </span>
+          <span
+            className={cn(
+              "text-xs whitespace-nowrap shrink-0",
+              !email.is_read ? "font-semibold text-foreground" : "text-muted-foreground"
+            )}
+          >
+            {formattedDate}
+          </span>
+        </div>
+        <div className="mt-0.5">
+          <span
+            className={cn(
+              "block truncate text-sm",
+              !email.is_read ? "font-semibold text-foreground" : "text-foreground/70"
+            )}
+          >
+            {email.subject}
+          </span>
+        </div>
       </div>
 
-      {/* Subject & Preview */}
-      <div className="flex-1 min-w-0 flex items-center gap-1">
-        <span className={cn(
-          "truncate text-sm",
-          !email.is_read ? "font-semibold text-foreground" : "text-foreground/70"
-        )}>
-          {email.subject}
-        </span>
-        <span className="text-muted-foreground mx-1 hidden sm:inline">-</span>
-        <span className="text-sm text-muted-foreground truncate hidden sm:block">
-          {preview}
-        </span>
-      </div>
+      {/* Desktop layout */}
+      <div className="hidden sm:flex flex-1 min-w-0 items-center">
+        {/* Sender */}
+        <div
+          className={cn(
+            "w-48 shrink-0 pr-3 truncate text-sm",
+            !email.is_read ? "font-semibold text-foreground" : "text-foreground/70"
+          )}
+        >
+          {senderName}
+        </div>
 
-      {/* Date */}
-      <div className={cn(
-        "pl-3 text-xs whitespace-nowrap shrink-0",
-        !email.is_read ? "font-semibold text-foreground" : "text-muted-foreground"
-      )}>
-        {formattedDate}
+        {/* Subject & Preview */}
+        <div className="flex-1 min-w-0 flex items-center gap-1">
+          <span
+            className={cn(
+              "truncate text-sm",
+              !email.is_read ? "font-semibold text-foreground" : "text-foreground/70"
+            )}
+          >
+            {email.subject}
+          </span>
+          <span className="text-muted-foreground mx-1 hidden sm:inline">-</span>
+          <span className="text-sm text-muted-foreground truncate hidden sm:block">{preview}</span>
+        </div>
+
+        {/* Date */}
+        <div
+          className={cn(
+            "pl-3 text-xs whitespace-nowrap shrink-0",
+            !email.is_read ? "font-semibold text-foreground" : "text-muted-foreground"
+          )}
+        >
+          {formattedDate}
+        </div>
       </div>
     </div>
   );
