@@ -23,6 +23,7 @@ const Index = () => {
   const { 
     emails, 
     loading, 
+    error,
     refetch, 
     markAsRead, 
     toggleStar, 
@@ -30,6 +31,15 @@ const Index = () => {
     archiveEmail,
     sendEmail 
   } = useEmails(activeFolder);
+
+  useEffect(() => {
+    if (!error) return;
+    toast({
+      title: 'Emails load failed',
+      description: error,
+      variant: 'destructive',
+    });
+  }, [error, toast]);
 
   // Apply dark mode
   useEffect(() => {

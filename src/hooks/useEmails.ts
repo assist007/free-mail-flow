@@ -16,18 +16,23 @@ export function useEmails(folder: string = 'inbox') {
         .select('*')
         .order('received_at', { ascending: false });
 
+      // NOTE: Treat NULL flags as false so older rows (or rows without defaults)
+      // still show up in the correct folders.
       if (folder === 'inbox') {
-        query = query.eq('is_trash', false).eq('is_archived', false).eq('is_sent', false);
+        query = query
+          .neq('is_trash', true)
+          .neq('is_archived', true)
+          .neq('is_sent', true);
       } else if (folder === 'sent') {
-        query = query.eq('is_sent', true).eq('is_trash', false);
+        query = query.eq('is_sent', true).neq('is_trash', true);
       } else if (folder === 'starred') {
-        query = query.eq('is_starred', true).eq('is_trash', false);
+        query = query.eq('is_starred', true).neq('is_trash', true);
       } else if (folder === 'archive') {
-        query = query.eq('is_archived', true).eq('is_trash', false);
+        query = query.eq('is_archived', true).neq('is_trash', true);
       } else if (folder === 'trash') {
         query = query.eq('is_trash', true);
       } else {
-        query = query.eq('folder', folder).eq('is_trash', false);
+        query = query.eq('folder', folder).neq('is_trash', true);
       }
 
       const { data, error: fetchError } = await query;
