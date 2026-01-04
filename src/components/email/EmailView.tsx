@@ -25,6 +25,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAttachments } from '@/hooks/useAttachments';
+import { AttachmentGrid } from '@/components/email/AttachmentGrid';
 
 interface EmailViewProps {
   email: Email;
@@ -46,6 +48,9 @@ export function EmailView({
   const senderName = email.from_name || email.from_email.split('@')[0];
   const senderInitials = senderName.slice(0, 1).toUpperCase();
   const formattedDate = format(new Date(email.received_at), 'MMM d, yyyy, h:mm a');
+
+  // Fetch attachments for this email
+  const { attachments, getPublicUrl, isImage, formatFileSize } = useAttachments(email.id);
 
   // Parse email body to extract clean content
   const { text: cleanText, html: cleanHtml } = useMemo(
@@ -149,7 +154,7 @@ export function EmailView({
           </div>
 
           {/* Email Body */}
-          <div className="px-4 sm:px-6 pb-8 overflow-hidden w-full">
+          <div className="px-4 sm:px-6 pb-4 overflow-hidden w-full">
             <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed overflow-hidden break-words w-full">
               {cleanHtml ? (
                 <div 
@@ -162,6 +167,14 @@ export function EmailView({
               )}
             </div>
           </div>
+
+          {/* Attachments Grid */}
+          <AttachmentGrid
+            attachments={attachments}
+            getPublicUrl={getPublicUrl}
+            isImage={isImage}
+            formatFileSize={formatFileSize}
+          />
         </div>
       </ScrollArea>
 
