@@ -7,27 +7,32 @@ export function parseEmailBody(rawText: string | null, rawHtml: string | null): 
   text: string;
   html: string | null;
 } {
-  // If we have HTML, try to extract it from MIME if present
-  let cleanHtml = rawHtml;
-  let cleanText = rawText || '';
+  let cleanText = '';
+  let cleanHtml: string | null = null;
 
-  // Check if this is a raw email with headers
-  if (cleanText && isRawEmail(cleanText)) {
-    const parsed = parseRawEmail(cleanText);
-    cleanText = parsed.text;
-    if (parsed.html) {
+  // First try to parse HTML if it looks like raw email
+  if (rawHtml) {
+    if (isRawEmail(rawHtml)) {
+      const parsed = parseRawEmail(rawHtml);
       cleanHtml = parsed.html;
+      cleanText = parsed.text;
+    } else {
+      cleanHtml = rawHtml;
     }
   }
 
-  // Also check HTML for raw email content
-  if (cleanHtml && isRawEmail(cleanHtml)) {
-    const parsed = parseRawEmail(cleanHtml);
-    if (parsed.html) {
-      cleanHtml = parsed.html;
-    } else if (parsed.text) {
-      cleanText = parsed.text;
-      cleanHtml = null;
+  // Then try text
+  if (rawText) {
+    if (isRawEmail(rawText)) {
+      const parsed = parseRawEmail(rawText);
+      if (!cleanHtml && parsed.html) {
+        cleanHtml = parsed.html;
+      }
+      if (!cleanText && parsed.text) {
+        cleanText = parsed.text;
+      }
+    } else if (!cleanText) {
+      cleanText = rawText;
     }
   }
 
@@ -38,72 +43,85 @@ export function parseEmailBody(rawText: string | null, rawHtml: string | null): 
 }
 
 function isRawEmail(content: string): boolean {
-  // Check for common email headers at the start
-  const headerPatterns = [
-    /^Received:/m,
-    /^From:/m,
-    /^To:/m,
-    /^Subject:/m,
-    /^MIME-Version:/m,
-    /^Content-Type:/m,
-    /^DKIM-Signature:/m,
-    /^ARC-/m,
-    /^X-Google-/m,
-    /^X-Gm-/m,
-    /^Message-ID:/m,
+  if (!content) return false;
+  
+  // Check if content starts with common email headers
+  const firstLine = content.trim().split('\n')[0] || '';
+  
+  const headerStarts = [
+    'Received:',
+    'Return-Path:',
+    'Delivered-To:',
+    'X-',
+    'ARC-',
+    'DKIM-',
+    'From:',
+    'To:',
+    'Subject:',
+    'Date:',
+    'Message-ID:',
+    'MIME-Version:',
+    'Content-Type:',
   ];
 
-  // If it starts with headers, it's raw email
-  const firstLines = content.substring(0, 2000);
-  let headerCount = 0;
-  
-  for (const pattern of headerPatterns) {
-    if (pattern.test(firstLines)) {
-      headerCount++;
+  for (const header of headerStarts) {
+    if (firstLine.startsWith(header)) {
+      return true;
     }
   }
 
-  return headerCount >= 3;
+  // Also check for boundary pattern which indicates MIME
+  if (content.includes('boundary=') && content.includes('Content-Type:')) {
+    return true;
+  }
+
+  return false;
 }
 
 function parseRawEmail(rawEmail: string): { text: string; html: string | null } {
   let text = '';
   let html: string | null = null;
 
-  // Try to find MIME boundary
-  const boundaryMatch = rawEmail.match(/boundary=\\"?([^\s"]+)\\"?/);
+  // Find MIME boundary
+  const boundaryMatch = rawEmail.match(/boundary="?([^"\s\r\n]+)"?/);
   
   if (boundaryMatch) {
     const boundary = boundaryMatch[1];
-    const parts = rawEmail.split(new RegExp(`--${escapeRegex(boundary)}`));
+    // Split by boundary
+    const boundaryRegex = new RegExp(`--${escapeRegex(boundary)}(?:--)?`, 'g');
+    const parts = rawEmail.split(boundaryRegex);
 
     for (const part of parts) {
-      // Skip empty parts and closing boundary
-      if (!part.trim() || part.startsWith('--')) continue;
+      if (!part.trim()) continue;
 
-      const contentTypeMatch = part.match(/Content-Type:\s*([^\s;]+)/i);
-      if (!contentTypeMatch) continue;
+      // Check content type of this part
+      const ctMatch = part.match(/Content-Type:\s*([^\s;]+)/i);
+      if (!ctMatch) continue;
 
-      const contentType = contentTypeMatch[1].toLowerCase();
-      
-      // Extract body (after the first double newline)
-      const bodyMatch = part.match(/\r?\n\r?\n([\s\S]*)/);
-      if (!bodyMatch) continue;
+      const contentType = ctMatch[1].toLowerCase();
 
-      let body = bodyMatch[1].trim();
+      // Find where headers end and body begins (double newline)
+      const headerBodySplit = part.match(/\r?\n\r?\n([\s\S]*)/);
+      if (!headerBodySplit) continue;
 
-      // Handle quoted-printable encoding
-      if (/Content-Transfer-Encoding:\s*quoted-printable/i.test(part)) {
+      let body = headerBodySplit[1];
+
+      // Check for transfer encoding
+      const isQuotedPrintable = /Content-Transfer-Encoding:\s*quoted-printable/i.test(part);
+      const isBase64 = /Content-Transfer-Encoding:\s*base64/i.test(part);
+
+      if (isQuotedPrintable) {
         body = decodeQuotedPrintable(body);
-      }
-      // Handle base64 encoding
-      else if (/Content-Transfer-Encoding:\s*base64/i.test(part)) {
+      } else if (isBase64) {
         try {
-          body = atob(body.replace(/\s/g, ''));
+          body = decodeBase64(body);
         } catch {
           // Keep as is if decode fails
         }
       }
+
+      // Clean the body
+      body = body.trim();
 
       if (contentType === 'text/plain' && !text) {
         text = body;
@@ -112,49 +130,68 @@ function parseRawEmail(rawEmail: string): { text: string; html: string | null } 
       }
     }
   } else {
-    // No MIME boundary, try to extract body after headers
-    // Headers end with double newline
-    const headerBodySplit = rawEmail.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/);
+    // No MIME boundary - simple email
+    // Find the body after all headers (headers end with double newline)
+    const parts = rawEmail.split(/\r?\n\r?\n/);
     
-    if (headerBodySplit) {
-      text = headerBodySplit[2].trim();
+    if (parts.length > 1) {
+      // Skip headers, take the rest as body
+      // Find where headers end - look for a line that doesn't look like a header
+      let headerEndIndex = 0;
+      const lines = rawEmail.split(/\r?\n/);
       
-      // Check for quoted-printable
-      if (/Content-Transfer-Encoding:\s*quoted-printable/i.test(headerBodySplit[1])) {
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Empty line marks end of headers
+        if (line.trim() === '') {
+          headerEndIndex = i;
+          break;
+        }
+      }
+
+      text = lines.slice(headerEndIndex + 1).join('\n').trim();
+
+      // Check if original had quoted-printable
+      if (/Content-Transfer-Encoding:\s*quoted-printable/i.test(rawEmail)) {
         text = decodeQuotedPrintable(text);
       }
-    } else {
-      text = rawEmail;
     }
-  }
-
-  // Clean up any remaining MIME artifacts
-  text = cleanMimeArtifacts(text);
-  if (html) {
-    html = cleanMimeArtifacts(html);
   }
 
   return { text, html };
 }
 
 function decodeQuotedPrintable(str: string): string {
+  if (!str) return '';
+  
   return str
-    // Handle soft line breaks
+    // Handle soft line breaks (= at end of line)
     .replace(/=\r?\n/g, '')
-    // Handle encoded characters
+    // Handle encoded characters like =E2=80=99 (UTF-8 bytes)
     .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => {
       return String.fromCharCode(parseInt(hex, 16));
+    })
+    // Fix any UTF-8 that was decoded byte by byte
+    .replace(/[\xC0-\xDF][\x80-\xBF]/g, (match) => {
+      const bytes = [match.charCodeAt(0), match.charCodeAt(1)];
+      const codePoint = ((bytes[0] & 0x1F) << 6) | (bytes[1] & 0x3F);
+      return String.fromCharCode(codePoint);
+    })
+    .replace(/[\xE0-\xEF][\x80-\xBF]{2}/g, (match) => {
+      const bytes = [match.charCodeAt(0), match.charCodeAt(1), match.charCodeAt(2)];
+      const codePoint = ((bytes[0] & 0x0F) << 12) | ((bytes[1] & 0x3F) << 6) | (bytes[2] & 0x3F);
+      return String.fromCodePoint(codePoint);
+    })
+    .replace(/[\xF0-\xF7][\x80-\xBF]{3}/g, (match) => {
+      const bytes = [match.charCodeAt(0), match.charCodeAt(1), match.charCodeAt(2), match.charCodeAt(3)];
+      const codePoint = ((bytes[0] & 0x07) << 18) | ((bytes[1] & 0x3F) << 12) | ((bytes[2] & 0x3F) << 6) | (bytes[3] & 0x3F);
+      return String.fromCodePoint(codePoint);
     });
 }
 
-function cleanMimeArtifacts(content: string): string {
-  return content
-    // Remove any remaining boundary markers
-    .replace(/--[a-zA-Z0-9]+--?\s*/g, '')
-    // Remove Content-Type headers that might be in the body
-    .replace(/Content-Type:.*\r?\n/gi, '')
-    .replace(/Content-Transfer-Encoding:.*\r?\n/gi, '')
-    .trim();
+function decodeBase64(str: string): string {
+  const cleaned = str.replace(/\s/g, '');
+  return atob(cleaned);
 }
 
 function escapeRegex(str: string): string {
