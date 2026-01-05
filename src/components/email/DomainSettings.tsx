@@ -339,12 +339,63 @@ interface EmailAddressesSectionProps {
 
 function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) {
   const { toast } = useToast();
-  const { addresses, loading, addAddress, deleteAddress } = useEmailAddresses(domain.id);
+  const { addresses, loading, addAddress, deleteAddress, refetch } = useEmailAddresses(domain.id);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newLocal, setNewLocal] = useState('');
   const [isCatchAll, setIsCatchAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [creating, setCreating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  // Sync addresses from received emails
+  const handleSyncFromEmails = async () => {
+    setSyncing(true);
+    try {
+      // Get all emails for this domain
+      const { data: emails, error: emailError } = await supabase
+        .from('emails')
+        .select('to_email')
+        .ilike('to_email', `%@${domain.domain}%`);
+
+      if (emailError) throw emailError;
+
+      // Extract unique local parts
+      const localParts = new Set<string>();
+      emails?.forEach(email => {
+        const match = email.to_email?.match(/^([^@]+)@/);
+        if (match) localParts.add(match[1].toLowerCase());
+      });
+
+      // Get existing addresses
+      const existingLocals = new Set(addresses.map(a => a.local_part.toLowerCase()));
+
+      // Add missing addresses
+      let addedCount = 0;
+      for (const localPart of localParts) {
+        if (!existingLocals.has(localPart)) {
+          const { error } = await addAddress(localPart);
+          if (!error) addedCount++;
+        }
+      }
+
+      await refetch();
+
+      toast({
+        title: 'Sync complete',
+        description: addedCount > 0 
+          ? `Added ${addedCount} new address${addedCount > 1 ? 'es' : ''} from received emails.`
+          : 'All addresses are already synced.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Sync failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleCreate = async () => {
     if (!newLocal.trim() && !isCatchAll) return;
@@ -416,6 +467,14 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
               <SelectItem value={domain.domain}>{domain.domain}</SelectItem>
             </SelectContent>
           </Select>
+          <Button 
+            variant="outline" 
+            onClick={handleSyncFromEmails} 
+            disabled={syncing}
+            className="shrink-0"
+          >
+            {syncing ? 'Syncing...' : 'Sync from Emails'}
+          </Button>
           <Button onClick={() => setShowCreateModal(true)} className="shrink-0">
             Create address
           </Button>

@@ -110,6 +110,52 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Email inserted successfully:", email.id);
 
+    // Auto-sync: Create email address if it doesn't exist
+    try {
+      const [localPart, domainName] = toEmail.split('@');
+      if (localPart && domainName) {
+        // Find the domain
+        const { data: domain } = await supabase
+          .from('email_domains')
+          .select('id')
+          .eq('domain', domainName)
+          .maybeSingle();
+
+        if (domain) {
+          // Check if address already exists
+          const { data: existingAddress } = await supabase
+            .from('email_addresses')
+            .select('id')
+            .eq('domain_id', domain.id)
+            .eq('local_part', localPart)
+            .maybeSingle();
+
+          if (!existingAddress) {
+            // Auto-create the address
+            const { error: addressError } = await supabase
+              .from('email_addresses')
+              .insert({
+                domain_id: domain.id,
+                local_part: localPart,
+                display_name: null,
+                is_catch_all: false,
+              });
+
+            if (addressError) {
+              console.error("Error auto-creating address:", addressError);
+            } else {
+              console.log(`Auto-created address: ${localPart}@${domainName}`);
+            }
+          }
+        } else {
+          console.log(`Domain not found for auto-sync: ${domainName}`);
+        }
+      }
+    } catch (syncError) {
+      console.error("Error in address auto-sync:", syncError);
+      // Don't throw - email is already saved, this is just a bonus feature
+    }
+
     // Handle attachments if present
     if (emailData.attachments && emailData.attachments.length > 0) {
       for (const attachment of emailData.attachments) {
