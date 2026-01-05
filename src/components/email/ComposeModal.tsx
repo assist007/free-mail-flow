@@ -1,11 +1,18 @@
-import { useState } from 'react';
-import { X, Send, Paperclip, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Send, Paperclip, Trash2, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { EmailDomain } from '@/integrations/supabase/client';
 
 const emailSchema = z.object({
   to: z.string().email('Please enter a valid email address'),
@@ -23,14 +30,42 @@ interface ComposeModalProps {
     originalBody?: string;
   };
   defaultFrom?: string;
+  domains?: EmailDomain[];
 }
 
-export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom = 'you@example.com' }: ComposeModalProps) {
+export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom = 'noreply@aibd.dpdns.org', domains = [] }: ComposeModalProps) {
   const { toast } = useToast();
   const [to, setTo] = useState(replyTo?.to || '');
   const [subject, setSubject] = useState(replyTo?.subject ? `Re: ${replyTo.subject}` : '');
   const [body, setBody] = useState(replyTo?.originalBody ? `\n\n---\n${replyTo.originalBody}` : '');
   const [sending, setSending] = useState(false);
+  const [fromEmail, setFromEmail] = useState(defaultFrom);
+  const [fromName, setFromName] = useState('');
+
+  // Build available from addresses
+  const fromAddresses = [
+    { email: 'noreply@aibd.dpdns.org', label: 'noreply@aibd.dpdns.org' },
+    ...domains.map(d => ({
+      email: `noreply@${d.domain}`,
+      label: `noreply@${d.domain}`,
+    })),
+  ];
+
+  // Update from email when defaultFrom changes
+  useEffect(() => {
+    if (defaultFrom) {
+      setFromEmail(defaultFrom);
+    }
+  }, [defaultFrom]);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTo(replyTo?.to || '');
+      setSubject(replyTo?.subject ? `Re: ${replyTo.subject}` : '');
+      setBody(replyTo?.originalBody ? `\n\n---\n${replyTo.originalBody}` : '');
+    }
+  }, [isOpen, replyTo]);
 
   if (!isOpen) return null;
 
@@ -43,7 +78,8 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom = '
         to_email: validated.to,
         subject: validated.subject,
         body_text: validated.body,
-        from_email: defaultFrom,
+        from_email: fromEmail,
+        from_name: fromName || undefined,
       });
       
       toast({
@@ -99,6 +135,30 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom = '
 
         {/* Form */}
         <div className="p-3 sm:p-4 space-y-2 sm:space-y-3 flex-1 overflow-y-auto">
+          {/* From field with dropdown */}
+          <div className="flex items-center gap-2 border-b border-border pb-2 sm:pb-3">
+            <Label className="text-xs sm:text-sm text-muted-foreground w-10 sm:w-12 shrink-0">From:</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-auto p-0 text-sm font-normal justify-start gap-1 hover:bg-transparent">
+                  <span className="text-foreground">{fromEmail}</span>
+                  <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                {fromAddresses.map((addr) => (
+                  <DropdownMenuItem
+                    key={addr.email}
+                    onClick={() => setFromEmail(addr.email)}
+                    className={fromEmail === addr.email ? 'bg-accent' : ''}
+                  >
+                    {addr.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <div className="flex items-center gap-2 border-b border-border pb-2 sm:pb-3">
             <Label htmlFor="to" className="text-xs sm:text-sm text-muted-foreground w-10 sm:w-12 shrink-0">To:</Label>
             <Input
