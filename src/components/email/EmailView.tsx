@@ -143,101 +143,103 @@ function parseConversation(email: Email): ConversationMessage[] {
 // Get avatar color based on name
 function getAvatarColor(name: string): string {
   const colors = [
-    'bg-red-500', 'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 
-    'bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-green-500',
-    'bg-orange-500', 'bg-amber-500'
+    'bg-gradient-to-br from-rose-400 to-pink-500', 
+    'bg-gradient-to-br from-violet-400 to-purple-500', 
+    'bg-gradient-to-br from-blue-400 to-indigo-500', 
+    'bg-gradient-to-br from-cyan-400 to-teal-500', 
+    'bg-gradient-to-br from-emerald-400 to-green-500',
+    'bg-gradient-to-br from-amber-400 to-orange-500'
   ];
   const colorIndex = (name || 'U').charCodeAt(0) % colors.length;
   return colors[colorIndex];
 }
 
-// Single message bubble component
+// Single message bubble component - Messenger style
 function MessageBubble({ 
   message, 
   isExpanded, 
   onToggle,
-  isLast 
+  isLast,
+  showAvatar
 }: { 
   message: ConversationMessage; 
   isExpanded: boolean; 
   onToggle: () => void;
   isLast: boolean;
+  showAvatar: boolean;
 }) {
   const isSent = message.type === 'sent';
   const initials = message.from.slice(0, 2).toUpperCase();
   const avatarColor = getAvatarColor(message.from);
   
   return (
-    <div 
-      className={cn(
-        "group flex gap-3 py-4 px-4 transition-all",
-        isSent ? "flex-row-reverse" : "",
-        !isLast && "border-b border-border/30"
+    <div className={cn(
+      "flex gap-2 px-4 mb-1",
+      isSent ? "justify-end" : "justify-start"
+    )}>
+      {/* Avatar - Left side for received */}
+      {!isSent && (
+        <div className="w-8 shrink-0 flex items-end">
+          {showAvatar && (
+            <Avatar className={cn("w-8 h-8 shadow-lg", avatarColor)}>
+              <AvatarFallback className="text-white font-semibold text-xs bg-transparent">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </div>
       )}
-    >
-      {/* Avatar */}
-      <Avatar className={cn(
-        "w-10 h-10 shrink-0 ring-2 ring-background shadow-md",
-        isSent ? "bg-primary" : avatarColor
-      )}>
-        <AvatarFallback className={cn(
-          "font-semibold text-sm",
-          isSent ? "bg-primary text-primary-foreground" : "text-white"
-        )}>
-          {isSent ? 'Me' : initials}
-        </AvatarFallback>
-      </Avatar>
       
       {/* Message Content */}
       <div className={cn(
-        "flex-1 min-w-0 max-w-[85%]",
-        isSent && "flex flex-col items-end"
+        "max-w-[75%] flex flex-col",
+        isSent ? "items-end" : "items-start"
       )}>
-        {/* Header */}
+        {/* Sender name - only show on first message of a group */}
+        {showAvatar && (
+          <span className={cn(
+            "text-xs text-muted-foreground mb-1 px-3",
+            isSent ? "text-right" : "text-left"
+          )}>
+            {isSent ? 'You' : message.from} • {message.date}
+          </span>
+        )}
+        
+        {/* Message Bubble */}
         <div 
           onClick={onToggle}
           className={cn(
-            "flex items-center gap-2 cursor-pointer mb-2",
-            isSent && "flex-row-reverse"
+            "px-4 py-2.5 cursor-pointer transition-all",
+            isSent 
+              ? "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground rounded-2xl rounded-br-md shadow-md shadow-primary/20" 
+              : "bg-muted text-foreground rounded-2xl rounded-bl-md shadow-sm",
+            "hover:shadow-lg"
           )}
         >
-          <span className="font-semibold text-sm text-foreground">
-            {isSent ? 'Me' : message.from}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {message.date}
-          </span>
-          {!isLast && (
-            <button className="text-muted-foreground hover:text-foreground">
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-          )}
-        </div>
-        
-        {/* Message Bubble */}
-        {(isExpanded || isLast) && (
-          <div className={cn(
-            "rounded-2xl px-4 py-3 shadow-sm",
-            isSent 
-              ? "bg-primary text-primary-foreground rounded-tr-md" 
-              : "bg-muted/80 text-foreground rounded-tl-md"
-          )}>
+          {(isExpanded || isLast) ? (
             <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
               {message.content}
             </p>
-          </div>
-        )}
+          ) : (
+            <p className="text-sm text-muted-foreground/80">
+              {message.content.slice(0, 50)}...
+            </p>
+          )}
+        </div>
         
-        {/* Collapsed preview */}
-        {!isExpanded && !isLast && (
-          <div className={cn(
-            "text-sm text-muted-foreground truncate max-w-md",
-            isSent && "text-right"
+        {/* Time for individual messages when not showing avatar */}
+        {!showAvatar && isLast && (
+          <span className={cn(
+            "text-[10px] text-muted-foreground mt-1 px-3",
+            isSent ? "text-right" : "text-left"
           )}>
-            {message.content.slice(0, 60)}...
-          </div>
+            {message.date}
+          </span>
         )}
       </div>
+      
+      {/* Avatar - Right side for sent (hidden, just for spacing) */}
+      {isSent && <div className="w-8 shrink-0" />}
     </div>
   );
 }
@@ -341,17 +343,22 @@ export function EmailView({
             </Button>
           </div>
 
-          {/* Conversation Thread */}
-          <div className="space-y-0 bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm">
-            {messages.map((message, index) => (
-              <MessageBubble
-                key={index}
-                message={message}
-                isExpanded={expandedMessages.has(index)}
-                onToggle={() => toggleMessage(index)}
-                isLast={index === messages.length - 1}
-              />
-            ))}
+          {/* Conversation Thread - Messenger Style */}
+          <div className="py-4 space-y-1 bg-gradient-to-b from-card to-background rounded-2xl border border-border/30 shadow-inner min-h-[200px]">
+            {messages.map((message, index) => {
+              // Show avatar if it's first message or different sender than previous
+              const showAvatar = index === 0 || messages[index - 1].type !== message.type;
+              return (
+                <MessageBubble
+                  key={index}
+                  message={message}
+                  isExpanded={expandedMessages.has(index)}
+                  onToggle={() => toggleMessage(index)}
+                  isLast={index === messages.length - 1}
+                  showAvatar={showAvatar}
+                />
+              );
+            })}
           </div>
 
           {/* Attachments Grid */}
