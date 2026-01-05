@@ -15,6 +15,8 @@ interface SendEmailRequest {
   body_html?: string;
   from_email: string;
   from_name?: string;
+  in_reply_to?: string;
+  references?: string[];
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -24,16 +26,25 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to_email, subject, body_text, body_html, from_email, from_name }: SendEmailRequest = await req.json();
+    const { to_email, subject, body_text, body_html, from_email, from_name, in_reply_to, references }: SendEmailRequest = await req.json();
 
-    console.log("Sending email:", { to_email, subject, from_email, from_name });
+    console.log("Sending email:", { to_email, subject, from_email, from_name, in_reply_to });
 
-    // Validate required fields
-    if (!to_email || !subject || !body_text || !from_email) {
+    // Validate required fields - subject is optional for replies
+    if (!to_email || !body_text || !from_email) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: to_email, subject, body_text, from_email" }),
+        JSON.stringify({ error: "Missing required fields: to_email, body_text, from_email" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
+    }
+
+    // Build email headers for threading
+    const emailHeaders: Record<string, string> = {};
+    if (in_reply_to) {
+      emailHeaders['In-Reply-To'] = in_reply_to;
+    }
+    if (references && references.length > 0) {
+      emailHeaders['References'] = references.join(' ');
     }
 
     // Send email via Resend REST API
@@ -46,9 +57,10 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: from_name ? `${from_name} <${from_email}>` : from_email,
         to: [to_email],
-        subject: subject,
+        subject: subject || '(No Subject)',
         text: body_text,
         html: body_html || body_text.replace(/\n/g, "<br>"),
+        headers: Object.keys(emailHeaders).length > 0 ? emailHeaders : undefined,
       }),
     });
 
@@ -74,9 +86,12 @@ const handler = async (req: Request): Promise<Response> => {
         from_email: from_email,
         from_name: from_name || null,
         to_email: to_email,
-        subject: subject,
+        subject: subject || '(No Subject)',
         body_text: body_text,
         body_html: body_html || null,
+        message_id: emailResponse.id || null,
+        in_reply_to: in_reply_to || null,
+        references: references || null,
         is_sent: true,
         is_read: true,
         folder: "sent",

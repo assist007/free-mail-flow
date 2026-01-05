@@ -151,10 +151,18 @@ const Index = () => {
     toast({ title: 'Conversation moved to Trash' });
   };
 
-  const handleSendEmail = async (email: { to_email: string; subject: string; body_text: string; from_email: string }) => {
+  const handleSendEmail = async (email: { 
+    to_email: string; 
+    subject: string; 
+    body_text: string; 
+    from_email: string;
+    from_name?: string;
+    in_reply_to?: string;
+    references?: string[];
+  }) => {
     const { error } = await sendEmail({
       ...email,
-      from_name: 'Me',
+      from_name: email.from_name || 'Me',
     });
     
     if (error) {
@@ -373,7 +381,8 @@ const Index = () => {
         replyTo={selectedEmail ? {
           to: selectedEmail.from_email,
           subject: selectedEmail.subject,
-          originalBody: selectedEmail.body_text || undefined,
+          messageId: selectedEmail.message_id || undefined,
+          references: selectedEmail.references || undefined,
         } : undefined}
         defaultFrom={allEmailAddresses.length > 0 ? `${allEmailAddresses[0].local_part}@${allEmailAddresses[0].domain}` : undefined}
         emailAddresses={allEmailAddresses}
