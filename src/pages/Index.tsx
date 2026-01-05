@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, RefreshCw, Moon, Sun, Menu, Settings, HelpCircle } from 'lucide-react';
+import { Search, RefreshCw, Moon, Sun, Menu, Settings, HelpCircle, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Sidebar } from '@/components/email/Sidebar';
@@ -252,6 +252,17 @@ const Index = () => {
           )}
         </div>
       </div>
+
+      {/* Mobile Floating Compose Button */}
+      {!selectedEmail && !isSettingsOpen && (
+        <Button
+          onClick={() => setIsComposeOpen(true)}
+          className="lg:hidden fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all bg-primary hover:bg-primary/90 z-40"
+          size="icon"
+        >
+          <Pencil className="w-6 h-6" />
+        </Button>
+      )}
 
       {/* Compose Modal */}
       <ComposeModal
