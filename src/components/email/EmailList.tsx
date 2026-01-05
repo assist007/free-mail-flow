@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { Email } from '@/integrations/supabase/client';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { parseEmailBody } from '@/lib/email-parser';
 
 interface EmailListProps {
   emails: Email[];
@@ -82,7 +83,11 @@ interface EmailListItemProps {
 
 function EmailListItem({ email, isSelected, onSelect, onToggleStar }: EmailListItemProps) {
   const senderName = email.from_name || email.from_email.split('@')[0];
-  const preview = email.body_text?.slice(0, 100) || email.body_html?.replace(/<[^>]*>/g, '').slice(0, 100) || '';
+  
+  // Parse email body to get clean preview text
+  const { text: cleanText } = parseEmailBody(email.body_text, email.body_html);
+  const preview = cleanText?.slice(0, 100) || '';
+  
   const formattedDate = formatEmailDate(new Date(email.received_at));
 
   return (
