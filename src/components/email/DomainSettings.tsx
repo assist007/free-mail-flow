@@ -33,20 +33,36 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const [addressCounts, setAddressCounts] = useState<Record<string, number>>({});
   const [resendApiKey, setResendApiKey] = useState('');
   const [hasResendKey, setHasResendKey] = useState(false);
+  const [resendKeyValid, setResendKeyValid] = useState(false);
+  const [resendDomains, setResendDomains] = useState<{id: string; name: string; status: string}[]>([]);
   const [verifyingResend, setVerifyingResend] = useState(false);
+  const [checkingResendKey, setCheckingResendKey] = useState(true);
 
-  // Check if RESEND_API_KEY exists (we check via edge function)
+  // Check if RESEND_API_KEY exists and is valid
   useEffect(() => {
     const checkResendKey = async () => {
+      setCheckingResendKey(true);
       try {
+        console.log("Checking Resend API key status...");
         const { data, error } = await supabase.functions.invoke('check-resend-key');
+        console.log("check-resend-key response:", data, error);
+        
         if (!error && data?.hasKey) {
           setHasResendKey(true);
+          setResendKeyValid(data.isValid || false);
+          if (data.domains) {
+            setResendDomains(data.domains);
+          }
+        } else {
+          setHasResendKey(false);
+          setResendKeyValid(false);
         }
       } catch (e) {
-        // If function doesn't exist or fails, assume no key
-        console.log('Could not check Resend key status');
+        console.error('Could not check Resend key status:', e);
+        setHasResendKey(false);
+        setResendKeyValid(false);
       }
+      setCheckingResendKey(false);
     };
     checkResendKey();
   }, []);
@@ -203,28 +219,54 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
           </Card>
 
           {/* Resend API Key Setup */}
-          <Card className={hasResendKey ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}>
+          <Card className={hasResendKey && resendKeyValid ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}>
             <CardHeader className="pb-3">
               <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                <Send className={`w-4 h-4 sm:w-5 sm:h-5 ${hasResendKey ? 'text-green-500' : 'text-amber-500'}`} />
+                <Send className={`w-4 h-4 sm:w-5 sm:h-5 ${hasResendKey && resendKeyValid ? 'text-green-500' : 'text-amber-500'}`} />
                 Email Sending (Resend)
-                {hasResendKey ? (
+                {checkingResendKey ? (
+                  <Badge variant="secondary" className="ml-2">
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Checking...
+                  </Badge>
+                ) : hasResendKey && resendKeyValid ? (
                   <Badge variant="default" className="bg-green-600 hover:bg-green-600 ml-2">
                     <Check className="w-3 h-3 mr-1" /> Active
+                  </Badge>
+                ) : hasResendKey && !resendKeyValid ? (
+                  <Badge variant="destructive" className="ml-2">
+                    <AlertCircle className="w-3 h-3 mr-1" /> Invalid Key
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="ml-2">Setup Required</Badge>
                 )}
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                {hasResendKey 
-                  ? 'Resend API key configured. You can send emails from your verified domains.'
+                {hasResendKey && resendKeyValid
+                  ? 'Resend API key configured and working!'
+                  : hasResendKey && !resendKeyValid
+                  ? 'API key exists but is invalid. Please update it.'
                   : 'To send emails from your domain, add your Resend API key.'
                 }
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {!hasResendKey && (
+              {/* Show Resend verified domains */}
+              {hasResendKey && resendKeyValid && resendDomains.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Verified domains in Resend:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {resendDomains.map((d) => (
+                      <Badge key={d.id} variant={d.status === 'verified' ? 'default' : 'secondary'} className={d.status === 'verified' ? 'bg-green-600' : ''}>
+                        <Globe className="w-3 h-3 mr-1" />
+                        {d.name}
+                        {d.status === 'verified' && <Check className="w-3 h-3 ml-1" />}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {(!hasResendKey || !resendKeyValid) && !checkingResendKey && (
                 <>
                   <Alert className="border-amber-500/30">
                     <Key className="h-4 w-4 text-amber-500" />
@@ -234,56 +276,68 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
                         <li>Go to <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a> and create an account</li>
                         <li>Add & verify your domain in <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline">Resend Domains</a></li>
                         <li>Create an API key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">API Keys</a></li>
-                        <li>Enter the API key below</li>
+                        <li>Add the API key to Lovable Cloud Secrets as <code className="bg-muted px-1 py-0.5 rounded">RESEND_API_KEY</code></li>
                       </ol>
                     </AlertDescription>
                   </Alert>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <Input
-                      type="password"
-                      placeholder="re_xxxxxxxxxxxxx"
-                      value={resendApiKey}
-                      onChange={(e) => setResendApiKey(e.target.value)}
-                      className="flex-1 font-mono"
-                    />
                     <Button 
                       onClick={async () => {
-                        if (!resendApiKey.trim()) return;
                         setVerifyingResend(true);
-                        const { data, error } = await supabase.functions.invoke('verify-resend-key', {
-                          body: { apiKey: resendApiKey.trim() }
-                        });
+                        const { data, error } = await supabase.functions.invoke('check-resend-key');
                         setVerifyingResend(false);
-                        if (error || !data?.valid) {
+                        console.log("Re-check response:", data, error);
+                        if (!error && data?.hasKey && data?.isValid) {
+                          setHasResendKey(true);
+                          setResendKeyValid(true);
+                          if (data.domains) {
+                            setResendDomains(data.domains);
+                          }
+                          toast({
+                            title: 'Resend API Key Active!',
+                            description: 'Your API key is configured and working.',
+                          });
+                        } else if (data?.hasKey && !data?.isValid) {
+                          setHasResendKey(true);
+                          setResendKeyValid(false);
                           toast({
                             title: 'Invalid API Key',
-                            description: error?.message || 'Could not verify the Resend API key.',
+                            description: 'The RESEND_API_KEY secret exists but is invalid. Please update it.',
                             variant: 'destructive',
                           });
                         } else {
-                          setHasResendKey(true);
-                          setResendApiKey('');
                           toast({
-                            title: 'Resend API Key Saved',
-                            description: 'You can now send emails from your verified domains.',
+                            title: 'No API Key Found',
+                            description: 'Please add RESEND_API_KEY to your Cloud Secrets.',
+                            variant: 'destructive',
                           });
                         }
                       }}
-                      disabled={verifyingResend || !resendApiKey.trim()}
+                      disabled={verifyingResend}
+                      variant="outline"
                       size="sm"
                       className="shrink-0"
                     >
-                      {verifyingResend ? 'Verifying...' : 'Verify & Save'}
+                      <RefreshCw className={`w-4 h-4 mr-2 ${verifyingResend ? 'animate-spin' : ''}`} />
+                      {verifyingResend ? 'Checking...' : 'Check API Key Status'}
                     </Button>
+                    <a 
+                      href="https://resend.com/api-keys" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline flex items-center gap-1"
+                    >
+                      Get API Key from Resend <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
                 </>
               )}
-              {hasResendKey && (
+              {hasResendKey && resendKeyValid && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  <span>API key is configured. Make sure your domain is verified in Resend to send emails.</span>
+                  <span>API key is working! You can send emails from domains listed above.</span>
                   <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
-                    Check Resend <ExternalLink className="w-3 h-3" />
+                    Manage Domains <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
               )}
