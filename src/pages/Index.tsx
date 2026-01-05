@@ -383,6 +383,9 @@ const Index = () => {
           subject: selectedEmail.subject,
           messageId: selectedEmail.message_id || undefined,
           references: selectedEmail.references || undefined,
+          originalBody: selectedEmail.body_text || undefined,
+          originalDate: selectedEmail.received_at,
+          originalFrom: selectedEmail.from_name || selectedEmail.from_email,
         } : undefined}
         defaultFrom={allEmailAddresses.length > 0 ? `${allEmailAddresses[0].local_part}@${allEmailAddresses[0].domain}` : undefined}
         emailAddresses={allEmailAddresses}

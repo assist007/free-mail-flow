@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import { format } from 'date-fns';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +46,9 @@ interface ComposeModalProps {
     subject: string;
     messageId?: string;
     references?: string[];
+    originalBody?: string;
+    originalDate?: string;
+    originalFrom?: string;
   };
   defaultFrom?: string;
   emailAddresses?: EmailAddressWithDomain[];
@@ -86,7 +90,15 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
       } else {
         setSubject('');
       }
-      setBody('');
+      
+      // Build Gmail-style quoted reply
+      if (replyTo?.originalBody && replyTo?.originalDate && replyTo?.originalFrom) {
+        const formattedDate = format(new Date(replyTo.originalDate), "EEE, MMM d, yyyy 'at' h:mm a");
+        const quotedContent = `\n\nOn ${formattedDate}, ${replyTo.originalFrom} wrote:\n> ${replyTo.originalBody.split('\n').join('\n> ')}`;
+        setBody(quotedContent);
+      } else {
+        setBody('');
+      }
     }
   }, [isOpen, replyTo]);
 
