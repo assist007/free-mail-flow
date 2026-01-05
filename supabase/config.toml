@@ -36,3 +36,9 @@ verify_jwt = false
 
 [functions.send-email]
 verify_jwt = false
+
+[functions.check-resend-key]
+verify_jwt = false
+
+[functions.verify-resend-key]
+verify_jwt = false
