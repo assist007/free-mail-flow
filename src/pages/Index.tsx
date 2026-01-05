@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, RefreshCw, Moon, Sun, Menu, Settings, HelpCircle, Pencil } from 'lucide-react';
+import { Search, RefreshCw, Moon, Sun, Menu, Settings, HelpCircle, Pencil, Globe } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Sidebar } from '@/components/email/Sidebar';
@@ -8,10 +8,19 @@ import { EmailView } from '@/components/email/EmailView';
 import { ComposeModal } from '@/components/email/ComposeModal';
 import { DomainSettings } from '@/components/email/DomainSettings';
 import { useEmails } from '@/hooks/useEmails';
+import { useDomains } from '@/hooks/useDomains';
 import { Email, supabaseUrl } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 
 const Index = () => {
   const [activeFolder, setActiveFolder] = useState('inbox');
@@ -21,8 +30,10 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDark, setIsDark] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [activeDomainId, setActiveDomainId] = useState<string | null>(null);
   
   const { toast } = useToast();
+  const { domains } = useDomains();
   const { 
     emails, 
     loading, 
@@ -49,11 +60,21 @@ const Index = () => {
     document.documentElement.classList.toggle('dark', isDark);
   }, [isDark]);
 
+  // Get active domain
+  const activeDomain = domains.find(d => d.id === activeDomainId);
+
   // Calculate unread count
   const unreadCount = emails.filter(e => !e.is_read).length;
 
-  // Filter emails by search
+  // Filter emails by search and domain
   const filteredEmails = emails.filter(email => {
+    // Filter by domain if selected
+    if (activeDomainId && activeDomain) {
+      if (!email.to_email.endsWith(`@${activeDomain.domain}`)) {
+        return false;
+      }
+    }
+    
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -143,6 +164,34 @@ const Index = () => {
             </div>
             <span className="text-xl font-display text-foreground hidden sm:block">FlowMail</span>
           </div>
+
+          {/* Mobile Domain Selector */}
+          {domains.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="lg:hidden gap-1 text-xs px-2">
+                  <Globe className="w-3.5 h-3.5" />
+                  <span className="max-w-[80px] truncate">
+                    {activeDomain ? activeDomain.domain : 'All'}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => setActiveDomainId(null)}>
+                  All Domains
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {domains.map((domain) => (
+                  <DropdownMenuItem 
+                    key={domain.id}
+                    onClick={() => setActiveDomainId(domain.id)}
+                  >
+                    {domain.domain}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Search Bar */}
@@ -190,6 +239,9 @@ const Index = () => {
             onCompose={() => setIsComposeOpen(true)}
             onSettingsClick={() => setIsSettingsOpen(true)}
             unreadCount={unreadCount}
+            domains={domains}
+            activeDomain={activeDomainId}
+            onDomainChange={setActiveDomainId}
           />
         </div>
 
@@ -202,6 +254,12 @@ const Index = () => {
               onCompose={handleMobileCompose}
               onSettingsClick={handleMobileSettings}
               unreadCount={unreadCount}
+              domains={domains}
+              activeDomain={activeDomainId}
+              onDomainChange={(id) => {
+                setActiveDomainId(id);
+                setIsMobileSidebarOpen(false);
+              }}
             />
           </SheetContent>
         </Sheet>
@@ -222,6 +280,11 @@ const Index = () => {
                   <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium capitalize">{activeFolder}</span>
+                      {activeDomain && (
+                        <Badge variant="secondary" className="text-xs">
+                          {activeDomain.domain}
+                        </Badge>
+                      )}
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {filteredEmails.length} {filteredEmails.length === 1 ? 'email' : 'emails'}
