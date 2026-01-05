@@ -6,12 +6,13 @@ import {
   Archive, 
   Trash2, 
   Settings, 
-  Mail, 
   Plus,
   ChevronDown,
   Globe,
   FileText,
-  Clock
+  Clock,
+  Check,
+  ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,20 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
+
+interface Domain {
+  id: string;
+  domain: string;
+  is_verified: boolean;
+}
 
 interface SidebarProps {
   activeFolder: string;
@@ -28,6 +43,9 @@ interface SidebarProps {
   onCompose: () => void;
   onSettingsClick: () => void;
   unreadCount?: number;
+  domains?: Domain[];
+  activeDomain?: string | null;
+  onDomainChange?: (domainId: string | null) => void;
 }
 
 const folders = [
@@ -45,12 +63,68 @@ export function Sidebar({
   onFolderChange, 
   onCompose, 
   onSettingsClick,
-  unreadCount = 0 
+  unreadCount = 0,
+  domains = [],
+  activeDomain,
+  onDomainChange
 }: SidebarProps) {
   const [isLabelsOpen, setIsLabelsOpen] = useState(true);
 
+  const currentDomain = domains.find(d => d.id === activeDomain);
+
   return (
     <div className="flex flex-col h-full w-64 bg-sidebar">
+      {/* Domain Selector */}
+      {domains.length > 0 && (
+        <div className="px-3 pt-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-left">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Globe className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-sm font-medium truncate">
+                    {currentDomain ? currentDomain.domain : 'All Domains'}
+                  </span>
+                </div>
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem 
+                onClick={() => onDomainChange?.(null)}
+                className="flex items-center justify-between"
+              >
+                <span>All Domains</span>
+                {!activeDomain && <Check className="w-4 h-4" />}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {domains.map((domain) => (
+                <DropdownMenuItem 
+                  key={domain.id}
+                  onClick={() => onDomainChange?.(domain.id)}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="truncate">{domain.domain}</span>
+                    {domain.is_verified && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                        verified
+                      </Badge>
+                    )}
+                  </div>
+                  {activeDomain === domain.id && <Check className="w-4 h-4 shrink-0" />}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onSettingsClick}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Domain
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       {/* Compose Button */}
       <div className="px-3 py-4">
         <Button 
