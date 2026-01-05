@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,25 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const [selectedDomainId, setSelectedDomainId] = useState<string | null>(null);
   const [addingDomain, setAddingDomain] = useState(false);
   const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
+  const [addressCounts, setAddressCounts] = useState<Record<string, number>>({});
+
+  // Fetch address counts for all domains
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const counts: Record<string, number> = {};
+      for (const domain of domains) {
+        const { count } = await supabase
+          .from('email_addresses')
+          .select('*', { count: 'exact', head: true })
+          .eq('domain_id', domain.id);
+        counts[domain.id] = count || 0;
+      }
+      setAddressCounts(counts);
+    };
+    if (domains.length > 0) {
+      fetchCounts();
+    }
+  }, [domains]);
 
   const handleAddDomain = async () => {
     if (!newDomain.trim()) return;
@@ -226,9 +245,17 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0" />
                         <div className="min-w-0">
-                          <p className="font-medium text-sm sm:text-base truncate">{domain.domain}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm sm:text-base truncate">{domain.domain}</p>
+                            {addressCounts[domain.id] > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                <Mail className="w-3 h-3 mr-1" />
+                                {addressCounts[domain.id]} address{addressCounts[domain.id] > 1 ? 'es' : ''}
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-xs sm:text-sm text-muted-foreground">
-                            Added {new Date(domain.created_at).toLocaleDateString()}
+                            Added {new Date(domain.created_at).toLocaleDateString()} • Click to manage addresses
                           </p>
                         </div>
                       </div>
