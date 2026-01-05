@@ -9,7 +9,7 @@ import { ComposeModal } from '@/components/email/ComposeModal';
 import { DomainSettings } from '@/components/email/DomainSettings';
 import { useEmails } from '@/hooks/useEmails';
 import { useDomains } from '@/hooks/useDomains';
-import { Email, supabaseUrl } from '@/integrations/supabase/client';
+import { Email, supabaseUrl, supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -22,6 +22,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 
+interface EmailAddressWithDomain {
+  id: string;
+  local_part: string;
+  domain: string;
+  display_name: string | null;
+  status: 'pending' | 'active';
+}
+
 const Index = () => {
   const [activeFolder, setActiveFolder] = useState('inbox');
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
@@ -31,6 +39,7 @@ const Index = () => {
   const [isDark, setIsDark] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [activeDomainId, setActiveDomainId] = useState<string | null>(null);
+  const [allEmailAddresses, setAllEmailAddresses] = useState<EmailAddressWithDomain[]>([]);
   
   const { toast } = useToast();
   const { domains } = useDomains();
@@ -45,6 +54,35 @@ const Index = () => {
     archiveEmail,
     sendEmail 
   } = useEmails(activeFolder);
+
+  // Fetch all email addresses with their domains
+  useEffect(() => {
+    const fetchAllAddresses = async () => {
+      const { data, error } = await supabase
+        .from('email_addresses')
+        .select(`
+          id,
+          local_part,
+          display_name,
+          status,
+          email_domains!inner(domain)
+        `)
+        .eq('status', 'active');
+      
+      if (!error && data) {
+        const addresses = data.map((addr: any) => ({
+          id: addr.id,
+          local_part: addr.local_part,
+          domain: addr.email_domains.domain,
+          display_name: addr.display_name,
+          status: addr.status,
+        }));
+        setAllEmailAddresses(addresses);
+      }
+    };
+    
+    fetchAllAddresses();
+  }, [domains]);
 
   useEffect(() => {
     if (!error) return;
@@ -337,8 +375,8 @@ const Index = () => {
           subject: selectedEmail.subject,
           originalBody: selectedEmail.body_text || undefined,
         } : undefined}
-        defaultFrom={activeDomain ? `noreply@${activeDomain.domain}` : 'noreply@aibd.dpdns.org'}
-        domains={domains}
+        defaultFrom={allEmailAddresses.length > 0 ? `${allEmailAddresses[0].local_part}@${allEmailAddresses[0].domain}` : undefined}
+        emailAddresses={allEmailAddresses}
       />
     </div>
   );
