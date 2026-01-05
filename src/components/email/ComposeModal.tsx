@@ -31,11 +31,20 @@ interface EmailAddressWithDomain {
 interface ComposeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSend: (email: { to_email: string; subject: string; body_text: string; from_email: string; from_name?: string }) => Promise<void>;
+  onSend: (email: { 
+    to_email: string; 
+    subject: string; 
+    body_text: string; 
+    from_email: string; 
+    from_name?: string;
+    in_reply_to?: string;
+    references?: string[];
+  }) => Promise<void>;
   replyTo?: {
     to: string;
     subject: string;
-    originalBody?: string;
+    messageId?: string;
+    references?: string[];
   };
   defaultFrom?: string;
   emailAddresses?: EmailAddressWithDomain[];
@@ -64,11 +73,19 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
     }
   }, [defaultFrom]);
 
-  // Reset form when modal opens
+  // Reset form when modal opens - show subject with Re: prefix for replies
   useEffect(() => {
     if (isOpen) {
       setTo(replyTo?.to || '');
-      setSubject('');
+      // For replies, add Re: prefix if not already present
+      if (replyTo?.subject) {
+        const subjectWithRe = replyTo.subject.startsWith('Re:') 
+          ? replyTo.subject 
+          : `Re: ${replyTo.subject}`;
+        setSubject(subjectWithRe);
+      } else {
+        setSubject('');
+      }
       setBody('');
     }
   }, [isOpen, replyTo]);
@@ -80,12 +97,20 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
       const validated = emailSchema.parse({ to, subject, body });
       
       setSending(true);
+      
+      // Build references array for threading
+      const newReferences = replyTo?.messageId 
+        ? [...(replyTo.references || []), replyTo.messageId]
+        : undefined;
+      
       await onSend({
         to_email: validated.to,
         subject: validated.subject || '',
         body_text: validated.body,
         from_email: fromEmail,
         from_name: fromName || undefined,
+        in_reply_to: replyTo?.messageId,
+        references: newReferences,
       });
       
       toast({
