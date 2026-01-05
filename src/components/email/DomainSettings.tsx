@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search } from 'lucide-react';
+import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useDomains, useEmailAddresses } from '@/hooks/useDomains';
+import { useAutoAddresses } from '@/hooks/useAutoAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
@@ -49,16 +50,25 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
   const [addressCounts, setAddressCounts] = useState<Record<string, number>>({});
 
-  // Fetch address counts for all domains
+  // Fetch address counts from received emails (auto-detected)
   useEffect(() => {
     const fetchCounts = async () => {
       const counts: Record<string, number> = {};
       for (const domain of domains) {
-        const { count } = await supabase
-          .from('email_addresses')
-          .select('*', { count: 'exact', head: true })
-          .eq('domain_id', domain.id);
-        counts[domain.id] = count || 0;
+        // Count unique addresses from received emails
+        const { data: emails } = await supabase
+          .from('emails')
+          .select('to_email')
+          .ilike('to_email', `%@${domain.domain}%`);
+        
+        // Extract unique local parts
+        const uniqueAddresses = new Set<string>();
+        emails?.forEach(email => {
+          const match = email.to_email?.match(/^([^@]+)@/);
+          if (match) uniqueAddresses.add(match[1].toLowerCase());
+        });
+        
+        counts[domain.id] = uniqueAddresses.size;
       }
       setAddressCounts(counts);
     };
@@ -339,95 +349,12 @@ interface EmailAddressesSectionProps {
 
 function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) {
   const { toast } = useToast();
-  const { addresses, loading, addAddress, deleteAddress, refetch } = useEmailAddresses(domain.id);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newLocal, setNewLocal] = useState('');
-  const [isCatchAll, setIsCatchAll] = useState(false);
+  const { addresses: autoAddresses, loading: autoLoading, refetch: refetchAuto } = useAutoAddresses(domain.domain);
   const [searchQuery, setSearchQuery] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [syncing, setSyncing] = useState(false);
 
-  // Sync addresses from received emails
-  const handleSyncFromEmails = async () => {
-    setSyncing(true);
-    try {
-      // Get all emails for this domain
-      const { data: emails, error: emailError } = await supabase
-        .from('emails')
-        .select('to_email')
-        .ilike('to_email', `%@${domain.domain}%`);
-
-      if (emailError) throw emailError;
-
-      // Extract unique local parts
-      const localParts = new Set<string>();
-      emails?.forEach(email => {
-        const match = email.to_email?.match(/^([^@]+)@/);
-        if (match) localParts.add(match[1].toLowerCase());
-      });
-
-      // Get existing addresses
-      const existingLocals = new Set(addresses.map(a => a.local_part.toLowerCase()));
-
-      // Add missing addresses
-      let addedCount = 0;
-      for (const localPart of localParts) {
-        if (!existingLocals.has(localPart)) {
-          const { error } = await addAddress(localPart);
-          if (!error) addedCount++;
-        }
-      }
-
-      await refetch();
-
-      toast({
-        title: 'Sync complete',
-        description: addedCount > 0 
-          ? `Added ${addedCount} new address${addedCount > 1 ? 'es' : ''} from received emails.`
-          : 'All addresses are already synced.',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Sync failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!newLocal.trim() && !isCatchAll) return;
-    
-    setCreating(true);
-    const { error } = await addAddress(
-      isCatchAll ? '*' : newLocal.trim(),
-      undefined,
-      isCatchAll
-    );
-    setCreating(false);
-    
-    if (error) {
-      toast({
-        title: 'Failed to create address',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: 'Address created',
-        description: `${isCatchAll ? '*' : newLocal}@${domain.domain} is now active`,
-      });
-      setNewLocal('');
-      setIsCatchAll(false);
-      setShowCreateModal(false);
-    }
-  };
-
-  const filteredAddresses = addresses.filter(addr => {
+  const filteredAddresses = autoAddresses.filter(addr => {
     if (!searchQuery) return true;
-    return addr.local_part.toLowerCase().includes(searchQuery.toLowerCase());
+    return addr.localPart.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   return (
@@ -437,51 +364,50 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
               <Mail className="w-5 h-5" />
-              Custom addresses
+              Active Addresses
+              <Badge variant="secondary" className="ml-2">
+                Auto-detected
+              </Badge>
             </CardTitle>
             <CardDescription className="mt-1">
-              Create custom email addresses and set the action on received emails.
+              Addresses detected from received emails. Synced automatically with Cloudflare.
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>Back</Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Cloudflare-style toolbar */}
+        {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input 
-              placeholder="Search" 
+              placeholder="Search addresses..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
           </div>
-          <Select defaultValue="all">
-            <SelectTrigger className="w-full sm:w-[140px]">
-              <SelectValue placeholder="Domain" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All domains</SelectItem>
-              <SelectItem value={domain.domain}>{domain.domain}</SelectItem>
-            </SelectContent>
-          </Select>
           <Button 
             variant="outline" 
-            onClick={handleSyncFromEmails} 
-            disabled={syncing}
+            onClick={() => refetchAuto()}
             className="shrink-0"
           >
-            {syncing ? 'Syncing...' : 'Sync from Emails'}
-          </Button>
-          <Button onClick={() => setShowCreateModal(true)} className="shrink-0">
-            Create address
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
           </Button>
         </div>
 
-        {/* Addresses Table - Cloudflare style */}
-        {loading ? (
+        {/* Info Alert */}
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            এই list automatically তৈরি হয় received emails থেকে। নতুন email আসলে নতুন address auto-add হয়।
+          </AlertDescription>
+        </Alert>
+
+        {/* Addresses Table */}
+        {autoLoading ? (
           <div className="space-y-2">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-12 bg-muted rounded animate-pulse" />
@@ -490,57 +416,37 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
         ) : filteredAddresses.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
             <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No email addresses yet</p>
-            <Button 
-              variant="link" 
-              onClick={() => setShowCreateModal(true)}
-              className="mt-2"
-            >
-              Create your first address
-            </Button>
+            <p className="text-sm">No emails received yet for this domain</p>
+            <p className="text-xs mt-1">Send an email to any address @{domain.domain} to see it here</p>
           </div>
         ) : (
           <div className="border border-border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="font-medium">Custom address</TableHead>
-                  <TableHead className="font-medium hidden sm:table-cell">Action</TableHead>
+                  <TableHead className="font-medium">Email Address</TableHead>
+                  <TableHead className="font-medium text-center">Emails</TableHead>
+                  <TableHead className="font-medium hidden sm:table-cell">Last Received</TableHead>
                   <TableHead className="font-medium">Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredAddresses.map((addr) => (
-                  <TableRow key={addr.id}>
+                  <TableRow key={addr.localPart}>
                     <TableCell className="font-mono text-sm">
-                      <div className="flex items-center gap-2">
-                        {addr.is_catch_all && (
-                          <Badge variant="outline" className="text-xs shrink-0">Catch-All</Badge>
-                        )}
-                        <span className="truncate">
-                          {addr.is_catch_all ? '*' : addr.local_part}@{domain.domain}
-                        </span>
-                      </div>
+                      {addr.fullAddress}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="outline">{addr.emailCount}</Badge>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
-                      Send to Worker
+                      {new Date(addr.lastReceived).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-success" />
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
                         <span className="text-sm">Active</span>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => deleteAddress(addr.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -548,60 +454,6 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
             </Table>
           </div>
         )}
-
-        {/* Create Address Modal */}
-        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create custom address</DialogTitle>
-              <DialogDescription>
-                Create a new email address for {domain.domain}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Email address</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    placeholder="username"
-                    value={newLocal}
-                    onChange={(e) => setNewLocal(e.target.value)}
-                    disabled={isCatchAll}
-                    className="flex-1"
-                  />
-                  <span className="text-muted-foreground shrink-0">@{domain.domain}</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="space-y-0.5">
-                  <Label className="font-medium">Catch-all address</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Receive all emails sent to this domain
-                  </p>
-                </div>
-                <Switch
-                  checked={isCatchAll}
-                  onCheckedChange={(checked) => {
-                    setIsCatchAll(checked);
-                    if (checked) setNewLocal('');
-                  }}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={handleCreate} 
-                disabled={creating || (!newLocal.trim() && !isCatchAll)}
-              >
-                {creating ? 'Creating...' : 'Create'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </CardContent>
     </Card>
   );
