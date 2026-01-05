@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import { format } from 'date-fns';
+import { parseEmailBody } from '@/lib/email-parser';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,10 +92,19 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
         setSubject('');
       }
       
-      // Build Gmail-style quoted reply
+      // Build Gmail-style quoted reply with clean content
       if (replyTo?.originalBody && replyTo?.originalDate && replyTo?.originalFrom) {
+        // Parse and clean the original body to remove raw email headers
+        const parsed = parseEmailBody(replyTo.originalBody, null);
+        const cleanBody = parsed.text || replyTo.originalBody;
+        
+        // Format the date nicely
         const formattedDate = format(new Date(replyTo.originalDate), "EEE, MMM d, yyyy 'at' h:mm a");
-        const quotedContent = `\n\nOn ${formattedDate}, ${replyTo.originalFrom} wrote:\n> ${replyTo.originalBody.split('\n').join('\n> ')}`;
+        
+        // Quote each line with >
+        const quotedLines = cleanBody.trim().split('\n').map(line => `> ${line}`).join('\n');
+        
+        const quotedContent = `\n\nOn ${formattedDate}, ${replyTo.originalFrom} wrote:\n${quotedLines}`;
         setBody(quotedContent);
       } else {
         setBody('');
