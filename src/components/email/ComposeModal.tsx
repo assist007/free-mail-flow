@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Send, Paperclip, Trash2, ChevronDown } from 'lucide-react';
+import { X, Send, Paperclip, Trash2, ChevronDown, FileIcon, Image, File } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,13 +8,14 @@ import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { parseEmailBody } from '@/lib/email-parser';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { EmailDomain } from '@/integrations/supabase/client';
+import { EmailDomain, EmailAttachment } from '@/integrations/supabase/client';
 
 const emailSchema = z.object({
   to: z.string().email('Please enter a valid email address'),
@@ -28,6 +29,13 @@ interface EmailAddressWithDomain {
   domain: string;
   display_name: string | null;
   status: 'pending' | 'active';
+}
+
+interface ForwardAttachment {
+  filename: string;
+  contentType: string;
+  size: number;
+  url: string;
 }
 
 interface ComposeModalProps {
@@ -51,11 +59,19 @@ interface ComposeModalProps {
     originalDate?: string;
     originalFrom?: string;
   };
+  forwardData?: {
+    subject: string;
+    originalBody?: string;
+    originalDate?: string;
+    originalFrom?: string;
+    originalTo?: string;
+    attachments?: ForwardAttachment[];
+  };
   defaultFrom?: string;
   emailAddresses?: EmailAddressWithDomain[];
 }
 
-export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, emailAddresses = [] }: ComposeModalProps) {
+export function ComposeModal({ isOpen, onClose, onSend, replyTo, forwardData, defaultFrom, emailAddresses = [] }: ComposeModalProps) {
   const { toast } = useToast();
   const [to, setTo] = useState(replyTo?.to || '');
   const [subject, setSubject] = useState('');
@@ -63,6 +79,11 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
   const [sending, setSending] = useState(false);
   const [fromEmail, setFromEmail] = useState(defaultFrom || '');
   const [fromName, setFromName] = useState('');
+  const [forwardAttachments, setForwardAttachments] = useState<ForwardAttachment[]>([]);
+
+  // Determine if this is a forward or reply
+  const isForward = !!forwardData;
+  const modalTitle = isForward ? 'Forward Message' : replyTo ? 'Reply' : 'New Message';
 
   // Build available from addresses from database
   const fromAddresses = emailAddresses.map(addr => ({
@@ -78,39 +99,79 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
     }
   }, [defaultFrom]);
 
-  // Reset form when modal opens - show subject with Re: prefix for replies
+  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      setTo(replyTo?.to || '');
-      // For replies, add Re: prefix if not already present
-      if (replyTo?.subject) {
+      // Handle Forward
+      if (forwardData) {
+        setTo(''); // Forward starts with empty recipient
+        const subjectWithFwd = forwardData.subject.startsWith('Fwd:') 
+          ? forwardData.subject 
+          : `Fwd: ${forwardData.subject}`;
+        setSubject(subjectWithFwd);
+        
+        // Build forwarded message content
+        if (forwardData.originalBody && forwardData.originalDate && forwardData.originalFrom) {
+          const parsed = parseEmailBody(forwardData.originalBody, null);
+          const cleanBody = parsed.text || forwardData.originalBody;
+          const formattedDate = format(new Date(forwardData.originalDate), "EEE, MMM d, yyyy 'at' h:mm a");
+          
+          const forwardedContent = `
+
+---------- Forwarded message ---------
+From: ${forwardData.originalFrom}
+Date: ${formattedDate}
+Subject: ${forwardData.subject}
+To: ${forwardData.originalTo || ''}
+
+${cleanBody}`;
+          setBody(forwardedContent);
+        } else {
+          setBody('');
+        }
+        
+        // Set attachments for forward
+        setForwardAttachments(forwardData.attachments || []);
+      }
+      // Handle Reply
+      else if (replyTo) {
+        setTo(replyTo.to);
         const subjectWithRe = replyTo.subject.startsWith('Re:') 
           ? replyTo.subject 
           : `Re: ${replyTo.subject}`;
         setSubject(subjectWithRe);
-      } else {
-        setSubject('');
+        
+        if (replyTo.originalBody && replyTo.originalDate && replyTo.originalFrom) {
+          const parsed = parseEmailBody(replyTo.originalBody, null);
+          const cleanBody = parsed.text || replyTo.originalBody;
+          const formattedDate = format(new Date(replyTo.originalDate), "EEE, MMM d, yyyy 'at' h:mm a");
+          const quotedLines = cleanBody.trim().split('\n').map(line => `> ${line}`).join('\n');
+          const quotedContent = `\n\nOn ${formattedDate}, ${replyTo.originalFrom} wrote:\n${quotedLines}`;
+          setBody(quotedContent);
+        } else {
+          setBody('');
+        }
+        setForwardAttachments([]);
       }
-      
-      // Build Gmail-style quoted reply with clean content
-      if (replyTo?.originalBody && replyTo?.originalDate && replyTo?.originalFrom) {
-        // Parse and clean the original body to remove raw email headers
-        const parsed = parseEmailBody(replyTo.originalBody, null);
-        const cleanBody = parsed.text || replyTo.originalBody;
-        
-        // Format the date nicely
-        const formattedDate = format(new Date(replyTo.originalDate), "EEE, MMM d, yyyy 'at' h:mm a");
-        
-        // Quote each line with >
-        const quotedLines = cleanBody.trim().split('\n').map(line => `> ${line}`).join('\n');
-        
-        const quotedContent = `\n\nOn ${formattedDate}, ${replyTo.originalFrom} wrote:\n${quotedLines}`;
-        setBody(quotedContent);
-      } else {
+      // New message
+      else {
+        setTo('');
+        setSubject('');
         setBody('');
+        setForwardAttachments([]);
       }
     }
-  }, [isOpen, replyTo]);
+  }, [isOpen, replyTo, forwardData]);
+
+  const removeAttachment = (index: number) => {
+    setForwardAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   if (!isOpen) return null;
 
@@ -175,7 +236,7 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
       <div className="relative z-50 w-full max-w-2xl mx-2 sm:mx-4 bg-card border border-border rounded-t-xl sm:rounded-xl shadow-2xl animate-slide-up max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-border shrink-0">
-          <h3 className="font-semibold text-foreground text-sm sm:text-base">New Message</h3>
+          <h3 className="font-semibold text-foreground text-sm sm:text-base">{modalTitle}</h3>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
               <Trash2 className="w-4 h-4" />
@@ -241,6 +302,37 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
             placeholder="Write your message..."
             className="min-h-[150px] sm:min-h-[200px] border-0 shadow-none focus-visible:ring-0 resize-none text-sm"
           />
+
+          {/* Forward Attachments */}
+          {forwardAttachments.length > 0 && (
+            <div className="border-t border-border pt-3 mt-2">
+              <Label className="text-xs text-muted-foreground mb-2 block">Attachments</Label>
+              <div className="flex flex-wrap gap-2">
+                {forwardAttachments.map((attachment, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 text-sm group"
+                  >
+                    {attachment.contentType.startsWith('image/') ? (
+                      <Image className="w-4 h-4 text-muted-foreground" />
+                    ) : (
+                      <File className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <span className="text-foreground max-w-[150px] truncate">{attachment.filename}</span>
+                    <span className="text-muted-foreground text-xs">({formatFileSize(attachment.size)})</span>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => removeAttachment(index)}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

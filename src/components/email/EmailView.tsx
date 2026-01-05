@@ -38,6 +38,7 @@ interface EmailViewProps {
   onArchive: () => void;
   onDelete: () => void;
   onReply: () => void;
+  onForward: () => void;
 }
 
 // Get avatar color based on name
@@ -186,7 +187,8 @@ export function EmailView({
   onToggleStar, 
   onArchive, 
   onDelete,
-  onReply 
+  onReply,
+  onForward
 }: EmailViewProps) {
   // Fetch all emails in this thread
   const { threadEmails, loading, refetch } = useThreadEmails(email.thread_id);
@@ -333,6 +335,7 @@ export function EmailView({
           </Button>
           <Button 
             variant="outline"
+            onClick={onForward}
             className="gap-2 rounded-full px-6 text-sm font-medium flex-1 sm:flex-none hover:bg-muted transition-colors"
           >
             <Forward className="w-4 h-4 shrink-0" />
