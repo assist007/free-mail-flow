@@ -135,13 +135,16 @@ export type EmailAddressInsert = {
 }
 
 // Use environment variables only (no hardcoded fallbacks)
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+// Support both Vite-exposed variables and platform-provided ones.
+const SUPABASE_URL =
+  (import.meta.env.VITE_SUPABASE_URL ?? (import.meta.env as any).SUPABASE_URL) as string | undefined;
+const SUPABASE_ANON_KEY =
+  (import.meta.env.VITE_SUPABASE_ANON_KEY ?? (import.meta.env as any).SUPABASE_ANON_KEY) as string | undefined;
 
-export const supabaseUrl = SUPABASE_URL;
+export const supabaseUrl = SUPABASE_URL ?? "";
 
 const missingEnvMessage =
-  'Missing Cloud environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in project secrets.';
+  "Missing Cloud environment variables. Please set VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (or SUPABASE_URL + SUPABASE_ANON_KEY) in project secrets.";
 
 type StubResult = { data: null; error: Error };
 
@@ -189,10 +192,15 @@ function createStubClient(): any {
   };
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+const hasEnv = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+export const supabase = hasEnv
+  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
+  : (console.warn(missingEnvMessage), createStubClient());
+
