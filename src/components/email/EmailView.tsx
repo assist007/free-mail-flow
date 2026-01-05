@@ -109,61 +109,56 @@ export function EmailView({
 
       {/* Email Content - Vertical scroll only */}
       <ScrollArea className="flex-1 w-full overflow-x-hidden">
-        <div className="w-full max-w-4xl mx-auto box-border">
+        <div className="w-full box-border px-3 sm:px-4 md:px-6 py-3">
           {/* Subject */}
-          <div className="flex items-start gap-2 px-3 sm:px-6 pt-4 pb-3 w-full box-border">
-            <h1 className="flex-1 min-w-0 text-lg sm:text-xl font-display font-normal text-foreground leading-snug break-words">
+          <div className="flex items-start gap-2 pb-2 w-full">
+            <h1 className="flex-1 min-w-0 text-base sm:text-lg md:text-xl font-display font-medium text-foreground leading-tight break-words">
               {email.subject}
             </h1>
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={onToggleStar}
-              className="shrink-0 h-9 w-9 text-muted-foreground hover:text-foreground"
+              className="shrink-0 h-8 w-8 text-muted-foreground hover:text-foreground -mt-1"
             >
               <Star className={cn(
-                "w-5 h-5",
+                "w-4 h-4",
                 email.is_starred ? "fill-warning text-warning" : ""
               )} />
             </Button>
           </div>
 
-          {/* Sender Info - Mobile optimized */}
-          <div className="flex items-start gap-3 px-3 sm:px-6 pb-4 w-full box-border">
-            <Avatar className={cn("w-9 h-9 sm:w-10 sm:h-10 shrink-0", avatarColor)}>
-              <AvatarFallback className="text-white font-medium text-sm sm:text-base">
+          {/* Sender Info - Compact mobile layout */}
+          <div className="flex items-start gap-2.5 pb-3 w-full border-b border-border/50 mb-3">
+            <Avatar className={cn("w-8 h-8 shrink-0", avatarColor)}>
+              <AvatarFallback className="text-white font-medium text-xs">
                 {senderInitials}
               </AvatarFallback>
             </Avatar>
             
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <div className="flex flex-col gap-0.5 w-full">
-                <div className="flex items-center gap-1 min-w-0 w-full">
-                  <span className="font-medium text-sm text-foreground truncate max-w-[40%]">{senderName}</span>
-                  <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">&lt;{email.from_email}&gt;</span>
-                </div>
-                <div className="flex items-center justify-between gap-2 w-full">
-                  <p className="text-xs text-muted-foreground truncate">
-                    to {email.to_email.split('@')[0]}
-                  </p>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                    {formattedDate}
-                  </span>
-                </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-1.5 flex-wrap">
+                <span className="font-medium text-sm text-foreground">{senderName}</span>
+                <span className="text-xs text-muted-foreground truncate">&lt;{email.from_email}&gt;</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                <span className="truncate">to {email.to_email.split('@')[0]}</span>
+                <span className="shrink-0">•</span>
+                <span className="shrink-0">{formattedDate}</span>
               </div>
             </div>
           </div>
 
-          {/* Email Body - Fully responsive */}
-          <div className="px-3 sm:px-6 pb-4 w-full box-border overflow-hidden">
-            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed w-full overflow-hidden">
+          {/* Email Body - Tight fit */}
+          <div className="w-full overflow-hidden">
+            <div className="prose prose-sm max-w-none dark:prose-invert w-full text-sm leading-relaxed">
               {cleanHtml ? (
                 <div 
                   dangerouslySetInnerHTML={{ __html: cleanHtml }}
-                  className="email-content w-full"
+                  className="email-content"
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words w-full">{cleanText}</div>
+                <div className="whitespace-pre-wrap break-words">{cleanText}</div>
               )}
             </div>
           </div>
