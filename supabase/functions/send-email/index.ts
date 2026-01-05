@@ -1,12 +1,30 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Function to get the correct API key based on the from_email domain
+function getResendApiKey(fromEmail: string): string {
+  const domain = fromEmail.split('@')[1]?.toLowerCase();
+  console.log("Getting API key for domain:", domain);
+  
+  // Check for domain-specific API keys
+  if (domain === 'redwan007.dpdns.org') {
+    const key = Deno.env.get("RESEND_API_KEY_REDWAN007");
+    if (key) {
+      console.log("Using RESEND_API_KEY_REDWAN007");
+      return key;
+    }
+  }
+  
+  // Default to the main RESEND_API_KEY (for aibd.dpdns.org and others)
+  const defaultKey = Deno.env.get("RESEND_API_KEY");
+  console.log("Using default RESEND_API_KEY");
+  return defaultKey || "";
+}
 
 interface SendEmailRequest {
   to_email: string;
@@ -118,11 +136,21 @@ const handler = async (req: Request): Promise<Response> => {
       emailHeaders['References'] = references.join(' ');
     }
 
+    // Get the correct API key based on from_email domain
+    const resendApiKey = getResendApiKey(from_email);
+    if (!resendApiKey) {
+      console.error("No Resend API key found for domain:", from_email.split('@')[1]);
+      return new Response(
+        JSON.stringify({ error: `No Resend API key configured for domain: ${from_email.split('@')[1]}` }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // Send email via Resend REST API
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Authorization": `Bearer ${resendApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
