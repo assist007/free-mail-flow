@@ -191,7 +191,20 @@ function decodeQuotedPrintable(str: string): string {
 
 function decodeBase64(str: string): string {
   const cleaned = str.replace(/\s/g, '');
-  return atob(cleaned);
+  try {
+    // Decode base64 to binary string
+    const binaryStr = atob(cleaned);
+    // Convert binary string to UTF-8 properly
+    const bytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      bytes[i] = binaryStr.charCodeAt(i);
+    }
+    // Use TextDecoder for proper UTF-8 handling (supports Bengali, Arabic, etc.)
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    // Fallback to simple decode
+    return atob(cleaned);
+  }
 }
 
 function escapeRegex(str: string): string {
