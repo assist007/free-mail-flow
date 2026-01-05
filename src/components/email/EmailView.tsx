@@ -9,8 +9,7 @@ import {
   MoreVertical,
   ArrowLeft,
   Printer,
-  ExternalLink,
-  ReplyAll
+  ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseEmailBody } from '@/lib/email-parser';
@@ -68,32 +67,32 @@ export function EmailView({
   const avatarColor = colors[colorIndex];
 
   return (
-    <div className="flex flex-col h-full w-full bg-background">
+    <div className="flex flex-col h-full w-full bg-background overflow-x-hidden box-border">
       {/* Toolbar */}
-      <div className="flex items-center px-2 sm:px-4 py-2 border-b border-border bg-card gap-1">
-        <Button variant="ghost" size="icon" onClick={onBack} className="mr-1 h-10 w-10">
+      <div className="flex items-center px-2 py-2 border-b border-border bg-card gap-1 w-full box-border shrink-0">
+        <Button variant="ghost" size="icon" onClick={onBack} className="mr-1 h-9 w-9 shrink-0">
           <ArrowLeft className="w-5 h-5" />
         </Button>
         
-        <Button variant="ghost" size="icon" onClick={onArchive} className="h-10 w-10 text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="icon" onClick={onArchive} className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground">
           <Archive className="w-5 h-5" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={onDelete} className="h-10 w-10 text-muted-foreground hover:text-foreground">
+        <Button variant="ghost" size="icon" onClick={onDelete} className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground">
           <Trash2 className="w-5 h-5" />
         </Button>
         
-        <div className="flex-1" />
+        <div className="flex-1 min-w-0" />
         
-        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground hidden sm:flex">
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground hidden sm:flex">
           <Printer className="w-5 h-5" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground hidden sm:flex">
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground hidden sm:flex">
           <ExternalLink className="w-5 h-5" />
         </Button>
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground">
               <MoreVertical className="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -108,19 +107,19 @@ export function EmailView({
         </DropdownMenu>
       </div>
 
-      {/* Email Content */}
-      <ScrollArea className="flex-1">
-        <div className="max-w-4xl mx-auto">
+      {/* Email Content - Vertical scroll only */}
+      <ScrollArea className="flex-1 w-full overflow-x-hidden">
+        <div className="w-full max-w-4xl mx-auto box-border">
           {/* Subject */}
-          <div className="flex items-start justify-between gap-4 px-4 sm:px-6 pt-6 pb-4">
-            <h1 className="text-xl sm:text-2xl font-display font-normal text-foreground leading-tight">
+          <div className="flex items-start gap-2 px-3 sm:px-6 pt-4 pb-3 w-full box-border">
+            <h1 className="flex-1 min-w-0 text-lg sm:text-xl font-display font-normal text-foreground leading-snug break-words">
               {email.subject}
             </h1>
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={onToggleStar}
-              className="shrink-0 h-10 w-10 text-muted-foreground hover:text-foreground"
+              className="shrink-0 h-9 w-9 text-muted-foreground hover:text-foreground"
             >
               <Star className={cn(
                 "w-5 h-5",
@@ -129,41 +128,42 @@ export function EmailView({
             </Button>
           </div>
 
-          {/* Sender Info */}
-          <div className="flex items-start gap-3 sm:gap-4 px-4 sm:px-6 pb-6">
-            <Avatar className={cn("w-10 h-10 shrink-0", avatarColor)}>
-              <AvatarFallback className="text-white font-medium text-base">
+          {/* Sender Info - Mobile optimized */}
+          <div className="flex items-start gap-3 px-3 sm:px-6 pb-4 w-full box-border">
+            <Avatar className={cn("w-9 h-9 sm:w-10 sm:h-10 shrink-0", avatarColor)}>
+              <AvatarFallback className="text-white font-medium text-sm sm:text-base">
                 {senderInitials}
               </AvatarFallback>
             </Avatar>
             
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium text-sm text-foreground truncate">{senderName}</span>
-                  <span className="text-sm text-muted-foreground truncate">&lt;{email.from_email}&gt;</span>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex flex-col gap-0.5 w-full">
+                <div className="flex items-center gap-1 min-w-0 w-full">
+                  <span className="font-medium text-sm text-foreground truncate max-w-[40%]">{senderName}</span>
+                  <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">&lt;{email.from_email}&gt;</span>
                 </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formattedDate}
-                </span>
+                <div className="flex items-center justify-between gap-2 w-full">
+                  <p className="text-xs text-muted-foreground truncate">
+                    to {email.to_email.split('@')[0]}
+                  </p>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                    {formattedDate}
+                  </span>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                to {email.to_email.split('@')[0]}
-              </p>
             </div>
           </div>
 
-          {/* Email Body */}
-          <div className="px-4 sm:px-6 pb-4 overflow-hidden w-full">
-            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed overflow-hidden break-words w-full">
+          {/* Email Body - Fully responsive */}
+          <div className="px-3 sm:px-6 pb-4 w-full box-border overflow-hidden">
+            <div className="prose prose-sm max-w-none dark:prose-invert leading-relaxed w-full overflow-hidden">
               {cleanHtml ? (
                 <div 
                   dangerouslySetInnerHTML={{ __html: cleanHtml }}
-                  className="email-content overflow-x-auto break-words [&_*]:max-w-full [&_*]:overflow-wrap-anywhere [&_*]:word-break-break-word [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full [&_table]:table-fixed [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_p]:break-words [&_span]:break-words [&_div]:break-words"
-                  style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                  className="email-content w-full"
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{cleanText}</div>
+                <div className="whitespace-pre-wrap text-sm leading-relaxed break-words w-full">{cleanText}</div>
               )}
             </div>
           </div>
@@ -178,23 +178,23 @@ export function EmailView({
         </div>
       </ScrollArea>
 
-      {/* Reply Actions */}
-      <div className="border-t border-border p-4 bg-card">
-        <div className="max-w-4xl mx-auto flex items-center gap-2">
+      {/* Reply Actions - Mobile optimized */}
+      <div className="border-t border-border p-3 bg-card shrink-0 w-full box-border">
+        <div className="flex items-center gap-2 w-full">
           <Button 
             onClick={onReply} 
             variant="outline"
-            className="gap-2 rounded-full px-6 text-sm font-medium"
+            className="gap-2 rounded-full px-4 sm:px-6 text-sm font-medium flex-1 sm:flex-none"
           >
-            <Reply className="w-4 h-4" />
-            Reply
+            <Reply className="w-4 h-4 shrink-0" />
+            <span>Reply</span>
           </Button>
           <Button 
             variant="outline"
-            className="gap-2 rounded-full px-6 text-sm font-medium"
+            className="gap-2 rounded-full px-4 sm:px-6 text-sm font-medium flex-1 sm:flex-none"
           >
-            <Forward className="w-4 h-4" />
-            Forward
+            <Forward className="w-4 h-4 shrink-0" />
+            <span>Forward</span>
           </Button>
         </div>
       </div>
