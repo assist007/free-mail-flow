@@ -16,7 +16,7 @@ import { EmailDomain } from '@/integrations/supabase/client';
 
 const emailSchema = z.object({
   to: z.string().email('Please enter a valid email address'),
-  subject: z.string().min(1, 'Subject is required'),
+  subject: z.string().optional(),
   body: z.string().min(1, 'Message body is required'),
 });
 
@@ -44,8 +44,8 @@ interface ComposeModalProps {
 export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, emailAddresses = [] }: ComposeModalProps) {
   const { toast } = useToast();
   const [to, setTo] = useState(replyTo?.to || '');
-  const [subject, setSubject] = useState(replyTo?.subject ? `Re: ${replyTo.subject}` : '');
-  const [body, setBody] = useState(replyTo?.originalBody ? `\n\n---\n${replyTo.originalBody}` : '');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [fromEmail, setFromEmail] = useState(defaultFrom || '');
   const [fromName, setFromName] = useState('');
@@ -68,8 +68,8 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
   useEffect(() => {
     if (isOpen) {
       setTo(replyTo?.to || '');
-      setSubject(replyTo?.subject ? `Re: ${replyTo.subject}` : '');
-      setBody(replyTo?.originalBody ? `\n\n---\n${replyTo.originalBody}` : '');
+      setSubject('');
+      setBody('');
     }
   }, [isOpen, replyTo]);
 
@@ -82,7 +82,7 @@ export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, em
       setSending(true);
       await onSend({
         to_email: validated.to,
-        subject: validated.subject,
+        subject: validated.subject || '',
         body_text: validated.body,
         from_email: fromEmail,
         from_name: fromName || undefined,
