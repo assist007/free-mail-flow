@@ -134,17 +134,24 @@ export type EmailAddressInsert = {
   created_at?: string
 }
 
-// Use environment variables only (no hardcoded fallbacks)
-// Support both Vite-exposed variables and platform-provided ones.
-const SUPABASE_URL =
-  (import.meta.env.VITE_SUPABASE_URL ?? (import.meta.env as any).SUPABASE_URL) as string | undefined;
-const SUPABASE_ANON_KEY =
-  (import.meta.env.VITE_SUPABASE_ANON_KEY ?? (import.meta.env as any).SUPABASE_ANON_KEY) as string | undefined;
+const DEFAULT_SUPABASE_URL = "https://zlfqfdnkcxfjvwkoxaqa.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpsZnFmZG5rY3hmanZ3a294YXFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MjA1MTIsImV4cCI6MjA4MzA5NjUxMn0.t8tqVqokc5fHyyeMjNtddUl_9npUkxGC464p_QaYNn0";
 
-export const supabaseUrl = SUPABASE_URL ?? "";
+const SUPABASE_URL =
+  (import.meta.env.VITE_SUPABASE_URL ??
+    (import.meta.env as any).SUPABASE_URL ??
+    DEFAULT_SUPABASE_URL) as string;
+
+const SUPABASE_ANON_KEY =
+  (import.meta.env.VITE_SUPABASE_ANON_KEY ??
+    (import.meta.env as any).SUPABASE_ANON_KEY ??
+    DEFAULT_SUPABASE_ANON_KEY) as string;
+
+export const supabaseUrl = SUPABASE_URL;
 
 const missingEnvMessage =
-  "Missing Cloud environment variables. Please set VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (or SUPABASE_URL + SUPABASE_ANON_KEY) in project secrets.";
+  'Missing Cloud environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in project secrets.';
 
 type StubResult = { data: null; error: Error };
 
@@ -192,15 +199,10 @@ function createStubClient(): any {
   };
 }
 
-const hasEnv = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-
-export const supabase = hasEnv
-  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
-      auth: {
-        storage: localStorage,
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    })
-  : (console.warn(missingEnvMessage), createStubClient());
-
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
