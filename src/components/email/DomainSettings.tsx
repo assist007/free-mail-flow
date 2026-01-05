@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, Power } from 'lucide-react';
+import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,15 +45,15 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const [newDomain, setNewDomain] = useState('');
   const [selectedDomainId, setSelectedDomainId] = useState<string | null>(null);
   const [addingDomain, setAddingDomain] = useState(false);
-  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
 
   const handleAddDomain = async () => {
     if (!newDomain.trim()) return;
-    
+
     setAddingDomain(true);
     const { error } = await addDomain(newDomain.trim());
     setAddingDomain(false);
-    
+
     if (error) {
       toast({
         title: 'Failed to add domain',
@@ -63,10 +63,30 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
     } else {
       toast({
         title: 'Domain added',
-        description: 'Configure DNS records to verify your domain.',
+        description: 'Configure email routing, then verify the domain here.',
       });
       setNewDomain('');
     }
+  };
+
+  const handleVerify = async (id: string) => {
+    setVerifyingDomainId(id);
+    const { error } = await verifyDomain(id);
+    setVerifyingDomainId(null);
+
+    if (error) {
+      toast({
+        title: 'Verification failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    toast({
+      title: 'Domain verified',
+      description: 'Status updated to Verified.',
+    });
   };
 
   const copyToClipboard = (text: string) => {
@@ -190,6 +210,22 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
                             'Pending'
                           )}
                         </Badge>
+
+                        {!domain.is_verified && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            disabled={verifyingDomainId === domain.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleVerify(domain.id);
+                            }}
+                          >
+                            {verifyingDomainId === domain.id ? 'Verifying...' : 'Verify'}
+                          </Button>
+                        )}
+
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                         <Button
                           variant="ghost"
@@ -221,15 +257,15 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
           {/* DNS Configuration Help */}
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>DNS Configuration Required</AlertTitle>
+            <AlertTitle>Finish setup</AlertTitle>
             <AlertDescription className="mt-2 space-y-2">
-              <p>To receive emails, configure your DNS with these records:</p>
-              <div className="bg-muted p-3 rounded-md font-mono text-xs space-y-1">
-                <p><strong>MX Record:</strong> @ → your-email-service (Priority: 10)</p>
-                <p><strong>TXT Record (SPF):</strong> v=spf1 include:your-service ~all</p>
-              </div>
-              <p className="text-sm">
-                Use <strong>Cloudflare Email Routing</strong> (free) or <strong>ImprovMX</strong> for catch-all forwarding.
+              <p>
+                If your <strong>Cloudflare Email Routing</strong> and Worker are already active, click
+                <strong> Verify</strong> next to the domain to change the status from <strong>Pending</strong> to
+                <strong> Verified</strong>.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Note: this “Verified” badge is a FlowMail status flag (we don’t automatically check DNS here).
               </p>
             </AlertDescription>
           </Alert>
