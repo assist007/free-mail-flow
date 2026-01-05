@@ -20,6 +20,14 @@ const emailSchema = z.object({
   body: z.string().min(1, 'Message body is required'),
 });
 
+interface EmailAddressWithDomain {
+  id: string;
+  local_part: string;
+  domain: string;
+  display_name: string | null;
+  status: 'pending' | 'active';
+}
+
 interface ComposeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,26 +38,24 @@ interface ComposeModalProps {
     originalBody?: string;
   };
   defaultFrom?: string;
-  domains?: EmailDomain[];
+  emailAddresses?: EmailAddressWithDomain[];
 }
 
-export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom = 'noreply@aibd.dpdns.org', domains = [] }: ComposeModalProps) {
+export function ComposeModal({ isOpen, onClose, onSend, replyTo, defaultFrom, emailAddresses = [] }: ComposeModalProps) {
   const { toast } = useToast();
   const [to, setTo] = useState(replyTo?.to || '');
   const [subject, setSubject] = useState(replyTo?.subject ? `Re: ${replyTo.subject}` : '');
   const [body, setBody] = useState(replyTo?.originalBody ? `\n\n---\n${replyTo.originalBody}` : '');
   const [sending, setSending] = useState(false);
-  const [fromEmail, setFromEmail] = useState(defaultFrom);
+  const [fromEmail, setFromEmail] = useState(defaultFrom || '');
   const [fromName, setFromName] = useState('');
 
-  // Build available from addresses
-  const fromAddresses = [
-    { email: 'noreply@aibd.dpdns.org', label: 'noreply@aibd.dpdns.org' },
-    ...domains.map(d => ({
-      email: `noreply@${d.domain}`,
-      label: `noreply@${d.domain}`,
-    })),
-  ];
+  // Build available from addresses from database
+  const fromAddresses = emailAddresses.map(addr => ({
+    email: `${addr.local_part}@${addr.domain}`,
+    label: addr.display_name ? `${addr.display_name} <${addr.local_part}@${addr.domain}>` : `${addr.local_part}@${addr.domain}`,
+    displayName: addr.display_name,
+  }));
 
   // Update from email when defaultFrom changes
   useEffect(() => {
