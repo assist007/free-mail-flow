@@ -337,6 +337,7 @@ const Index = () => {
           subject: selectedEmail.subject,
           originalBody: selectedEmail.body_text || undefined,
         } : undefined}
+        defaultFrom={activeDomain ? `noreply@${activeDomain.domain}` : 'noreply@aibd.dpdns.org'}
       />
     </div>
   );
