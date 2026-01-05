@@ -115,23 +115,27 @@ export function useEmails(folder: string = 'inbox') {
   };
 
   const sendEmail = async (email: EmailInsert) => {
-    const { data, error } = await supabase
-      .from('emails')
-      .insert({
-        ...email,
-        is_sent: true,
-        folder: 'sent',
-        received_at: new Date().toISOString(),
-      } as any)
-      .select()
-      .single();
+    // Call the send-email edge function
+    const { data: functionData, error: functionError } = await supabase.functions.invoke('send-email', {
+      body: email,
+    });
 
-    if (!error && data) {
-      if (folder === 'sent') {
-        setEmails(prev => [data as Email, ...prev]);
-      }
+    if (functionError) {
+      console.error('Send email error:', functionError);
+      return { data: null, error: functionError };
     }
-    return { data: data as Email | null, error };
+
+    if (functionData?.error) {
+      console.error('Send email API error:', functionData.error);
+      return { data: null, error: new Error(functionData.error) };
+    }
+
+    // If successful, add to sent emails list
+    if (functionData?.email && folder === 'sent') {
+      setEmails(prev => [functionData.email as Email, ...prev]);
+    }
+
+    return { data: functionData?.email as Email | null, error: null };
   };
 
   return {
