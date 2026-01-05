@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw, Clock, CheckCircle2 } from 'lucide-react';
+import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw, Clock, CheckCircle2, Key, Send, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,25 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const [addingDomain, setAddingDomain] = useState(false);
   const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
   const [addressCounts, setAddressCounts] = useState<Record<string, number>>({});
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [hasResendKey, setHasResendKey] = useState(false);
+  const [verifyingResend, setVerifyingResend] = useState(false);
+
+  // Check if RESEND_API_KEY exists (we check via edge function)
+  useEffect(() => {
+    const checkResendKey = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('check-resend-key');
+        if (!error && data?.hasKey) {
+          setHasResendKey(true);
+        }
+      } catch (e) {
+        // If function doesn't exist or fails, assume no key
+        console.log('Could not check Resend key status');
+      }
+    };
+    checkResendKey();
+  }, []);
 
   // Fetch address counts from email_addresses table
   useEffect(() => {
@@ -183,6 +202,94 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
             </CardContent>
           </Card>
 
+          {/* Resend API Key Setup */}
+          <Card className={hasResendKey ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Send className={`w-4 h-4 sm:w-5 sm:h-5 ${hasResendKey ? 'text-green-500' : 'text-amber-500'}`} />
+                Email Sending (Resend)
+                {hasResendKey ? (
+                  <Badge variant="default" className="bg-green-600 hover:bg-green-600 ml-2">
+                    <Check className="w-3 h-3 mr-1" /> Active
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="ml-2">Setup Required</Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                {hasResendKey 
+                  ? 'Resend API key configured. You can send emails from your verified domains.'
+                  : 'To send emails from your domain, add your Resend API key.'
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {!hasResendKey && (
+                <>
+                  <Alert className="border-amber-500/30">
+                    <Key className="h-4 w-4 text-amber-500" />
+                    <AlertDescription className="text-sm">
+                      <strong>Steps to enable email sending:</strong>
+                      <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground">
+                        <li>Go to <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a> and create an account</li>
+                        <li>Add & verify your domain in <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline">Resend Domains</a></li>
+                        <li>Create an API key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">API Keys</a></li>
+                        <li>Enter the API key below</li>
+                      </ol>
+                    </AlertDescription>
+                  </Alert>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <Input
+                      type="password"
+                      placeholder="re_xxxxxxxxxxxxx"
+                      value={resendApiKey}
+                      onChange={(e) => setResendApiKey(e.target.value)}
+                      className="flex-1 font-mono"
+                    />
+                    <Button 
+                      onClick={async () => {
+                        if (!resendApiKey.trim()) return;
+                        setVerifyingResend(true);
+                        const { data, error } = await supabase.functions.invoke('verify-resend-key', {
+                          body: { apiKey: resendApiKey.trim() }
+                        });
+                        setVerifyingResend(false);
+                        if (error || !data?.valid) {
+                          toast({
+                            title: 'Invalid API Key',
+                            description: error?.message || 'Could not verify the Resend API key.',
+                            variant: 'destructive',
+                          });
+                        } else {
+                          setHasResendKey(true);
+                          setResendApiKey('');
+                          toast({
+                            title: 'Resend API Key Saved',
+                            description: 'You can now send emails from your verified domains.',
+                          });
+                        }
+                      }}
+                      disabled={verifyingResend || !resendApiKey.trim()}
+                      size="sm"
+                      className="shrink-0"
+                    >
+                      {verifyingResend ? 'Verifying...' : 'Verify & Save'}
+                    </Button>
+                  </div>
+                </>
+              )}
+              {hasResendKey && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span>API key is configured. Make sure your domain is verified in Resend to send emails.</span>
+                  <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
+                    Check Resend <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Add Domain */}
           <Card>
             <CardHeader className="pb-3">
@@ -227,69 +334,95 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
                 <div className="text-center py-8 text-muted-foreground">
                   <Globe className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>No domains added yet</p>
+                  <p className="text-xs mt-2 text-muted-foreground/70">
+                    Add a domain above, then create an email address and receive a mail to activate it.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-2 sm:space-y-3">
                   {domains.map((domain) => (
                     <div
                       key={domain.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer gap-2 sm:gap-4"
+                      className={`flex flex-col p-3 sm:p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer gap-2 ${
+                        !domain.is_verified ? 'border-amber-500/30 bg-amber-500/5' : 'border-border'
+                      }`}
                       onClick={() => setSelectedDomainId(domain.id)}
                     >
-                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                        <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0" />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-sm sm:text-base truncate">{domain.domain}</p>
-                            {addressCounts[domain.id] > 0 && (
-                              <Badge variant="outline" className="text-xs">
-                                <Mail className="w-3 h-3 mr-1" />
-                                {addressCounts[domain.id]} address{addressCounts[domain.id] > 1 ? 'es' : ''}
-                              </Badge>
-                            )}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm sm:text-base truncate">{domain.domain}</p>
+                              {addressCounts[domain.id] > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  <Mail className="w-3 h-3 mr-1" />
+                                  {addressCounts[domain.id]} address{addressCounts[domain.id] > 1 ? 'es' : ''}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                              Added {new Date(domain.created_at).toLocaleDateString()} • Click to manage addresses
+                            </p>
                           </div>
-                          <p className="text-xs sm:text-sm text-muted-foreground">
-                            Added {new Date(domain.created_at).toLocaleDateString()} • Click to manage addresses
-                          </p>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-2 pl-6 sm:pl-0">
-                        <Badge variant={domain.is_verified ? 'default' : 'secondary'} className="text-xs">
-                          {domain.is_verified ? (
-                            <><Check className="w-3 h-3 mr-1" /> Verified</>
-                          ) : (
-                            'Pending'
-                          )}
-                        </Badge>
+                        <div className="flex items-center justify-between sm:justify-end gap-2 pl-6 sm:pl-0">
+                          <Badge variant={domain.is_verified ? 'default' : 'secondary'} className={`text-xs ${domain.is_verified ? 'bg-green-600 hover:bg-green-600' : ''}`}>
+                            {domain.is_verified ? (
+                              <><Check className="w-3 h-3 mr-1" /> Verified</>
+                            ) : (
+                              <><Clock className="w-3 h-3 mr-1" /> Pending</>
+                            )}
+                          </Badge>
 
-                        {!domain.is_verified && (
+                          {!domain.is_verified && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              disabled={verifyingDomainId === domain.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleVerify(domain.id, domain.domain);
+                              }}
+                            >
+                              {verifyingDomainId === domain.id ? 'Verifying...' : 'Verify'}
+                            </Button>
+                          )}
+
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
                           <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-xs"
-                            disabled={verifyingDomainId === domain.id}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleVerify(domain.id, domain.domain);
+                              deleteDomain(domain.id);
                             }}
                           >
-                            {verifyingDomainId === domain.id ? 'Verifying...' : 'Verify'}
+                            <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
-                        )}
-
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteDomain(domain.id);
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
+                        </div>
                       </div>
+                      
+                      {/* Activation Instructions for Pending Domains */}
+                      {!domain.is_verified && (
+                        <div className="mt-2 p-2 bg-amber-500/10 rounded border border-amber-500/20 text-xs text-muted-foreground">
+                          <p className="font-medium text-amber-600 dark:text-amber-400 mb-1">
+                            📧 To activate this domain:
+                          </p>
+                          <ol className="list-decimal list-inside space-y-0.5 ml-1">
+                            <li>Click on this domain to create an email address</li>
+                            <li>Send a test email to that address</li>
+                            <li>Click "Verify" once email is received</li>
+                          </ol>
+                          {!hasResendKey && (
+                            <p className="mt-2 pt-2 border-t border-amber-500/20 text-amber-600 dark:text-amber-400">
+                              🔑 To send emails: Add your Resend API key above
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
