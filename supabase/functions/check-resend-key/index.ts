@@ -12,13 +12,63 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    console.log("check-resend-key function called");
+    
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const hasKey = !!resendApiKey && resendApiKey.length > 0;
+    const hasKey = !!resendApiKey && resendApiKey.trim().length > 0;
 
-    console.log("Check Resend key status:", hasKey ? "Key exists" : "No key");
+    console.log("Check Resend key status:", hasKey ? "Key exists (length: " + resendApiKey?.length + ")" : "No key");
+
+    // If key exists, also verify it's valid by testing with Resend API
+    if (hasKey) {
+      try {
+        const response = await fetch("https://api.resend.com/domains", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+        });
+        
+        console.log("Resend validation response:", response.status);
+        
+        if (response.ok) {
+          const domains = await response.json();
+          return new Response(
+            JSON.stringify({ 
+              hasKey: true, 
+              isValid: true,
+              domains: domains.data || []
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            }
+          );
+        } else {
+          console.log("Resend key exists but is invalid");
+          return new Response(
+            JSON.stringify({ hasKey: true, isValid: false }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            }
+          );
+        }
+      } catch (e) {
+        console.error("Error validating with Resend:", e);
+        return new Response(
+          JSON.stringify({ hasKey: true, isValid: false }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          }
+        );
+      }
+    }
 
     return new Response(
-      JSON.stringify({ hasKey }),
+      JSON.stringify({ hasKey: false }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -29,7 +79,7 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({ error: error.message, hasKey: false }),
       {
-        status: 500,
+        status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );

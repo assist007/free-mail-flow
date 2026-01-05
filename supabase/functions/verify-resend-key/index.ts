@@ -12,13 +12,31 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { apiKey } = await req.json();
+    console.log("verify-resend-key function called");
+    
+    let apiKey: string | undefined;
+    
+    // Try to get API key from request body, if not provided use env
+    try {
+      const body = await req.json();
+      apiKey = body.apiKey;
+      console.log("API key provided in request body");
+    } catch {
+      console.log("No body provided, checking environment");
+    }
+    
+    // If no API key in body, use the one from environment
+    if (!apiKey) {
+      apiKey = Deno.env.get("RESEND_API_KEY");
+      console.log("Using RESEND_API_KEY from environment:", apiKey ? "exists" : "not found");
+    }
 
-    if (!apiKey || typeof apiKey !== 'string') {
+    if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
+      console.log("No API key available");
       return new Response(
-        JSON.stringify({ valid: false, error: "API key is required" }),
+        JSON.stringify({ valid: false, error: "API key is required. Please add RESEND_API_KEY to your secrets." }),
         {
-          status: 400,
+          status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         }
       );
@@ -35,9 +53,11 @@ serve(async (req: Request): Promise<Response> => {
       },
     });
 
+    console.log("Resend API response status:", response.status);
+
     if (response.ok) {
       const domains = await response.json();
-      console.log("Resend API key is valid. Domains:", domains);
+      console.log("Resend API key is valid. Domains:", JSON.stringify(domains));
       
       return new Response(
         JSON.stringify({ 
@@ -52,12 +72,12 @@ serve(async (req: Request): Promise<Response> => {
       );
     } else {
       const errorData = await response.text();
-      console.error("Resend API key verification failed:", errorData);
+      console.error("Resend API key verification failed:", response.status, errorData);
       
       return new Response(
         JSON.stringify({ 
           valid: false, 
-          error: "Invalid API key or verification failed" 
+          error: `Invalid API key (Status: ${response.status})` 
         }),
         {
           status: 200,
@@ -66,11 +86,11 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
   } catch (error: any) {
-    console.error("Error verifying Resend key:", error);
+    console.error("Error in verify-resend-key:", error.message, error.stack);
     return new Response(
-      JSON.stringify({ valid: false, error: error.message }),
+      JSON.stringify({ valid: false, error: `Server error: ${error.message}` }),
       {
-        status: 500,
+        status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
