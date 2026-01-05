@@ -77,7 +77,65 @@ const handler = async (req: Request): Promise<Response> => {
     const toName = toMatch?.[1] || null;
     const toEmail = toMatch?.[2] || emailData.to;
 
-    // Insert email into database
+    // STRICT ADDRESS CONTROL: Only accept emails for pre-created addresses
+    const [localPart, domainName] = toEmail.split('@');
+    
+    if (!localPart || !domainName) {
+      console.log(`Invalid recipient email format: ${toEmail}`);
+      return new Response(
+        JSON.stringify({ error: 'Invalid recipient email format', rejected: true }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+
+    // Find the domain
+    const { data: domain } = await supabase
+      .from('email_domains')
+      .select('id')
+      .eq('domain', domainName)
+      .maybeSingle();
+
+    if (!domain) {
+      console.log(`Domain not registered: ${domainName}`);
+      return new Response(
+        JSON.stringify({ error: 'Domain not registered', rejected: true }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+
+    // Check if address exists in our database (pre-created by app)
+    const { data: existingAddress } = await supabase
+      .from('email_addresses')
+      .select('id, status')
+      .eq('domain_id', domain.id)
+      .eq('local_part', localPart)
+      .maybeSingle();
+
+    if (!existingAddress) {
+      // REJECT: Address was not pre-created, don't store this email
+      console.log(`Rejected email: Address not registered - ${localPart}@${domainName}`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Address not registered', 
+          rejected: true,
+          message: `Email address ${toEmail} is not registered in the system` 
+        }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+
+    console.log(`Address verified: ${localPart}@${domainName} (status: ${existingAddress.status})`);
+
+    // Insert email into database (only for verified addresses)
     const { data: email, error: emailError } = await supabase
       .from('emails')
       .insert({
@@ -110,50 +168,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Email inserted successfully:", email.id);
 
-    // Auto-sync: Create email address if it doesn't exist
-    try {
-      const [localPart, domainName] = toEmail.split('@');
-      if (localPart && domainName) {
-        // Find the domain
-        const { data: domain } = await supabase
-          .from('email_domains')
-          .select('id')
-          .eq('domain', domainName)
-          .maybeSingle();
+    // Update address status to 'active' if this is the first email
+    if (existingAddress.status === 'pending') {
+      const { error: updateError } = await supabase
+        .from('email_addresses')
+        .update({
+          status: 'active',
+          first_received_at: new Date().toISOString(),
+        })
+        .eq('id', existingAddress.id);
 
-        if (domain) {
-          // Check if address already exists
-          const { data: existingAddress } = await supabase
-            .from('email_addresses')
-            .select('id')
-            .eq('domain_id', domain.id)
-            .eq('local_part', localPart)
-            .maybeSingle();
-
-          if (!existingAddress) {
-            // Auto-create the address
-            const { error: addressError } = await supabase
-              .from('email_addresses')
-              .insert({
-                domain_id: domain.id,
-                local_part: localPart,
-                display_name: null,
-                is_catch_all: false,
-              });
-
-            if (addressError) {
-              console.error("Error auto-creating address:", addressError);
-            } else {
-              console.log(`Auto-created address: ${localPart}@${domainName}`);
-            }
-          }
-        } else {
-          console.log(`Domain not found for auto-sync: ${domainName}`);
-        }
+      if (updateError) {
+        console.error("Error updating address status:", updateError);
+      } else {
+        console.log(`Address activated: ${localPart}@${domainName}`);
       }
-    } catch (syncError) {
-      console.error("Error in address auto-sync:", syncError);
-      // Don't throw - email is already saved, this is just a bonus feature
     }
 
     // Handle attachments if present
