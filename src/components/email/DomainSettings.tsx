@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw } from 'lucide-react';
+import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw, EyeOff, Eye, Ban, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,9 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useDomains, useEmailAddresses } from '@/hooks/useDomains';
 import { useAutoAddresses } from '@/hooks/useAutoAddresses';
+import { useHiddenAddresses } from '@/hooks/useHiddenAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
@@ -350,12 +352,54 @@ interface EmailAddressesSectionProps {
 function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) {
   const { toast } = useToast();
   const { addresses: autoAddresses, loading: autoLoading, refetch: refetchAuto } = useAutoAddresses(domain.domain);
+  const { 
+    hiddenAddresses, 
+    hideAddress, 
+    blockAddress, 
+    restoreAddress, 
+    isHidden, 
+    isBlocked 
+  } = useHiddenAddresses(domain.domain);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'active' | 'hidden'>('active');
 
-  const filteredAddresses = autoAddresses.filter(addr => {
+  // Filter visible addresses (not hidden)
+  const visibleAddresses = autoAddresses.filter(addr => !isHidden(addr.localPart));
+  
+  const filteredAddresses = visibleAddresses.filter(addr => {
     if (!searchQuery) return true;
     return addr.localPart.toLowerCase().includes(searchQuery.toLowerCase());
   });
+
+  const filteredHidden = hiddenAddresses.filter(addr => {
+    if (!searchQuery) return true;
+    return addr.localPart.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const handleHide = (localPart: string) => {
+    hideAddress(localPart);
+    toast({
+      title: 'Address hidden',
+      description: `${localPart}@${domain.domain} is now hidden. You can restore it anytime.`,
+    });
+  };
+
+  const handleBlock = (localPart: string) => {
+    blockAddress(localPart);
+    toast({
+      title: 'Address blocked',
+      description: `${localPart}@${domain.domain} is now blocked permanently.`,
+      variant: 'destructive',
+    });
+  };
+
+  const handleRestore = (localPart: string) => {
+    restoreAddress(localPart);
+    toast({
+      title: 'Address restored',
+      description: `${localPart}@${domain.domain} is now visible again.`,
+    });
+  };
 
   return (
     <Card>
@@ -377,83 +421,187 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search addresses..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Button 
-            variant="outline" 
-            onClick={() => refetchAuto()}
-            className="shrink-0"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'hidden')}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="active" className="flex items-center gap-2">
+              <Eye className="w-4 h-4" />
+              Active ({visibleAddresses.length})
+            </TabsTrigger>
+            <TabsTrigger value="hidden" className="flex items-center gap-2">
+              <EyeOff className="w-4 h-4" />
+              Hidden ({hiddenAddresses.length})
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Info Alert */}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            এই list automatically তৈরি হয় received emails থেকে। নতুন email আসলে নতুন address auto-add হয়।
-          </AlertDescription>
-        </Alert>
+          {/* Toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search addresses..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => refetchAuto()}
+              className="shrink-0"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
 
-        {/* Addresses Table */}
-        {autoLoading ? (
-          <div className="space-y-2">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-12 bg-muted rounded animate-pulse" />
-            ))}
-          </div>
-        ) : filteredAddresses.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
-            <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No emails received yet for this domain</p>
-            <p className="text-xs mt-1">Send an email to any address @{domain.domain} to see it here</p>
-          </div>
-        ) : (
-          <div className="border border-border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead className="font-medium">Email Address</TableHead>
-                  <TableHead className="font-medium text-center">Emails</TableHead>
-                  <TableHead className="font-medium hidden sm:table-cell">Last Received</TableHead>
-                  <TableHead className="font-medium">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAddresses.map((addr) => (
-                  <TableRow key={addr.localPart}>
-                    <TableCell className="font-mono text-sm">
-                      {addr.fullAddress}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="outline">{addr.emailCount}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
-                      {new Date(addr.lastReceived).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-sm">Active</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+          {/* Active Addresses Tab */}
+          <TabsContent value="active" className="mt-4">
+            {/* Info Alert */}
+            <Alert className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                এই list automatically তৈরি হয় received emails থেকে। Unwanted address hide বা block করতে পারেন।
+              </AlertDescription>
+            </Alert>
+
+            {/* Addresses Table */}
+            {autoLoading ? (
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-12 bg-muted rounded animate-pulse" />
                 ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+              </div>
+            ) : filteredAddresses.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
+                <Mail className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No active addresses</p>
+                <p className="text-xs mt-1">
+                  {visibleAddresses.length === 0 && hiddenAddresses.length > 0 
+                    ? "All addresses are hidden. Check the Hidden tab." 
+                    : `Send an email to any address @${domain.domain} to see it here`}
+                </p>
+              </div>
+            ) : (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="font-medium">Email Address</TableHead>
+                      <TableHead className="font-medium text-center">Emails</TableHead>
+                      <TableHead className="font-medium hidden sm:table-cell">Last Received</TableHead>
+                      <TableHead className="font-medium text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAddresses.map((addr) => (
+                      <TableRow key={addr.localPart}>
+                        <TableCell className="font-mono text-sm">
+                          {addr.fullAddress}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline">{addr.emailCount}</Badge>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                          {new Date(addr.lastReceived).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleHide(addr.localPart)}
+                              title="Hide address"
+                            >
+                              <EyeOff className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleBlock(addr.localPart)}
+                              title="Block address permanently"
+                            >
+                              <Ban className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Hidden Addresses Tab */}
+          <TabsContent value="hidden" className="mt-4">
+            <Alert className="mb-4">
+              <EyeOff className="h-4 w-4" />
+              <AlertDescription>
+                Hidden addresses এখানে দেখা যায়। Blocked addresses নতুন email আসলেও auto-restore হবে না।
+              </AlertDescription>
+            </Alert>
+
+            {filteredHidden.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
+                <EyeOff className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No hidden addresses</p>
+                <p className="text-xs mt-1">Hidden or blocked addresses will appear here</p>
+              </div>
+            ) : (
+              <div className="border border-border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="font-medium">Email Address</TableHead>
+                      <TableHead className="font-medium">Status</TableHead>
+                      <TableHead className="font-medium hidden sm:table-cell">Hidden At</TableHead>
+                      <TableHead className="font-medium text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredHidden.map((addr) => (
+                      <TableRow key={addr.localPart}>
+                        <TableCell className="font-mono text-sm">
+                          {addr.localPart}@{domain.domain}
+                        </TableCell>
+                        <TableCell>
+                          {addr.isBlocked ? (
+                            <Badge variant="destructive" className="flex items-center gap-1 w-fit">
+                              <Ban className="w-3 h-3" />
+                              Blocked
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                              <EyeOff className="w-3 h-3" />
+                              Hidden
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                          {new Date(addr.hiddenAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRestore(addr.localPart)}
+                            className="h-8"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-1" />
+                            Restore
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
