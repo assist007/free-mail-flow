@@ -118,8 +118,6 @@ export type EmailAddress = {
   local_part: string
   display_name: string | null
   is_catch_all: boolean
-  status: 'pending' | 'active'
-  first_received_at: string | null
   created_at: string
 }
 
@@ -129,8 +127,6 @@ export type EmailAddressInsert = {
   local_part: string
   display_name?: string | null
   is_catch_all?: boolean
-  status?: 'pending' | 'active'
-  first_received_at?: string | null
   created_at?: string
 }
 
