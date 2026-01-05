@@ -40,6 +40,8 @@ const Index = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [activeDomainId, setActiveDomainId] = useState<string | null>(null);
   const [allEmailAddresses, setAllEmailAddresses] = useState<EmailAddressWithDomain[]>([]);
+  const [isForwarding, setIsForwarding] = useState(false);
+  const [forwardAttachments, setForwardAttachments] = useState<Array<{ filename: string; contentType: string; size: number; url: string }>>([]);
   
   const { toast } = useToast();
   const { domains } = useDomains();
@@ -188,6 +190,7 @@ const Index = () => {
   };
 
   const handleMobileCompose = () => {
+    setIsForwarding(false);
     setIsComposeOpen(true);
     setIsMobileSidebarOpen(false);
   };
@@ -195,6 +198,30 @@ const Index = () => {
   const handleMobileSettings = () => {
     setIsSettingsOpen(true);
     setIsMobileSidebarOpen(false);
+  };
+
+  // Handle forward - fetch attachments and open compose
+  const handleForward = async () => {
+    if (!selectedEmail) return;
+    
+    // Fetch attachments for the email
+    const { data: attachments } = await supabase
+      .from('email_attachments')
+      .select('*')
+      .eq('email_id', selectedEmail.id);
+    
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://zlfqfdnkcxfjvwkoxaqa.supabase.co';
+    
+    const forwardAtts = (attachments || []).map((att: any) => ({
+      filename: att.filename,
+      contentType: att.content_type,
+      size: att.size,
+      url: `${supabaseUrl}/storage/v1/object/public/email-attachments/${att.storage_path}`,
+    }));
+    
+    setForwardAttachments(forwardAtts);
+    setIsForwarding(true);
+    setIsComposeOpen(true);
   };
 
   return (
@@ -362,7 +389,11 @@ const Index = () => {
                     onToggleStar={() => handleToggleStar(selectedEmail.id)}
                     onArchive={handleArchive}
                     onDelete={handleDelete}
-                    onReply={() => setIsComposeOpen(true)}
+                    onReply={() => {
+                      setIsForwarding(false);
+                      setIsComposeOpen(true);
+                    }}
+                    onForward={handleForward}
                   />
                 </div>
               )}
@@ -374,7 +405,10 @@ const Index = () => {
       {/* Mobile Floating Compose Button */}
       {!selectedEmail && !isSettingsOpen && (
         <Button
-          onClick={() => setIsComposeOpen(true)}
+          onClick={() => {
+            setIsForwarding(false);
+            setIsComposeOpen(true);
+          }}
           className="lg:hidden fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all bg-primary hover:bg-primary/90 z-40"
           size="icon"
         >
@@ -385,9 +419,13 @@ const Index = () => {
       {/* Compose Modal */}
       <ComposeModal
         isOpen={isComposeOpen}
-        onClose={() => setIsComposeOpen(false)}
+        onClose={() => {
+          setIsComposeOpen(false);
+          setIsForwarding(false);
+          setForwardAttachments([]);
+        }}
         onSend={handleSendEmail}
-        replyTo={selectedEmail ? {
+        replyTo={!isForwarding && selectedEmail ? {
           to: selectedEmail.from_email,
           subject: selectedEmail.subject,
           messageId: selectedEmail.message_id || undefined,
@@ -395,6 +433,14 @@ const Index = () => {
           originalBody: selectedEmail.body_text || undefined,
           originalDate: selectedEmail.received_at,
           originalFrom: selectedEmail.from_name || selectedEmail.from_email,
+        } : undefined}
+        forwardData={isForwarding && selectedEmail ? {
+          subject: selectedEmail.subject,
+          originalBody: selectedEmail.body_text || undefined,
+          originalDate: selectedEmail.received_at,
+          originalFrom: selectedEmail.from_name || selectedEmail.from_email,
+          originalTo: selectedEmail.to_email,
+          attachments: forwardAttachments,
         } : undefined}
         defaultFrom={allEmailAddresses.length > 0 ? `${allEmailAddresses[0].local_part}@${allEmailAddresses[0].domain}` : undefined}
         emailAddresses={allEmailAddresses}
