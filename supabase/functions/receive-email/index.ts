@@ -113,43 +113,23 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // ========================================
-    // If address doesn't exist, AUTO-ADD it (Cloudflare validated)
-    // Since email came through Cloudflare worker, it means Cloudflare has this address configured
+    // REJECT if address not in allowlist (STRICT MODE - no auto-add)
+    // Only addresses created via the app are allowed
     // ========================================
-    let addressId = existingAddress?.id;
-    let isFirstEmail = !existingAddress || existingAddress.status === 'pending';
-
     if (!existingAddress) {
-      console.log(`Address not in DB but received via Cloudflare: ${localPart}@${domainName}, AUTO-ADDING`);
-      
-      // Auto-create the address (Cloudflare validated it by routing to our worker)
-      const { data: newAddress, error: createError } = await supabase
-        .from('email_addresses')
-        .insert({
-          domain_id: domain.id,
-          local_part: localPart.toLowerCase(),
-          status: 'active', // Immediately active since Cloudflare validated
-          first_received_at: new Date().toISOString(),
-        })
-        .select('id')
-        .single();
-
-      if (createError) {
-        console.error("Error auto-creating address:", createError);
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            reason: 'auto_create_failed',
-            message: 'Failed to auto-register Cloudflare address'
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-        );
-      }
-
-      addressId = newAddress.id;
-      isFirstEmail = true;
-      console.log(`Address auto-created from Cloudflare: ${localPart}@${domainName}`);
+      console.log(`Address not in allowlist: ${localPart}@${domainName}, REJECTING`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          reason: 'address_not_allowed',
+          message: 'This email address is not registered. Create it via the app first.'
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
     }
+
+    const addressId = existingAddress.id;
+    const isFirstEmail = existingAddress.status === 'pending';
 
     console.log(`Address verified in allowlist: ${localPart}@${domainName}, processing email`);
 

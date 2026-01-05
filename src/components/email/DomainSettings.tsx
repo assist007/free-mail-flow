@@ -148,10 +148,10 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
           {/* Security Notice */}
           <Alert className="border-primary/50 bg-primary/5">
             <AlertCircle className="h-4 w-4 text-primary" />
-            <AlertTitle className="text-primary">Allowlist-Only System</AlertTitle>
+            <AlertTitle className="text-primary">Strict Allowlist System</AlertTitle>
             <AlertDescription>
-              App থেকে তৈরি করা addresses অথবা Cloudflare-এ configured addresses-এ email receive হবে। 
-              Cloudflare থেকে first email receive হলে address auto-add হবে। Random/unauthorized emails reject হবে।
+              শুধুমাত্র App থেকে তৈরি করা addresses-এ email receive হবে। 
+              Unknown/unauthorized addresses-এ পাঠানো emails automatically reject হবে।
             </AlertDescription>
           </Alert>
 
