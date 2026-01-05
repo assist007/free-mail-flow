@@ -77,7 +77,7 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
     const { data: emails, error: emailError } = await supabase
       .from('emails')
       .select('id')
-      .ilike('to_addresses', `%@${domainName}%`)
+      .ilike('to_email', `%@${domainName}%`)
       .limit(1);
 
     if (emailError) {
