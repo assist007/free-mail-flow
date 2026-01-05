@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { 
   Star, 
   Archive, 
@@ -9,7 +9,9 @@ import {
   MoreVertical,
   ArrowLeft,
   Printer,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { parseEmailBody } from '@/lib/email-parser';
@@ -36,6 +38,210 @@ interface EmailViewProps {
   onReply: () => void;
 }
 
+interface ConversationMessage {
+  type: 'sent' | 'received';
+  from: string;
+  fromEmail: string;
+  to: string;
+  content: string;
+  date: string;
+  rawDate: Date;
+}
+
+// Parse conversation thread from email body
+function parseConversation(email: Email): ConversationMessage[] {
+  const { text: cleanText } = parseEmailBody(email.body_text, email.body_html);
+  const messages: ConversationMessage[] = [];
+  
+  if (!cleanText) {
+    // Just the main email content
+    const mainParsed = parseEmailBody(email.body_text, email.body_html);
+    messages.push({
+      type: 'received',
+      from: email.from_name || email.from_email.split('@')[0],
+      fromEmail: email.from_email,
+      to: email.to_email,
+      content: mainParsed.text || '',
+      date: format(new Date(email.received_at), "MMM d, yyyy 'at' h:mm a"),
+      rawDate: new Date(email.received_at)
+    });
+    return messages;
+  }
+  
+  // Split by "On ... wrote:" pattern to extract conversation
+  const threadPattern = /On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4}\s+at\s+\d{1,2}:\d{2}\s*(?:AM|PM)?,?\s*([^<\n]+)?(?:<([^>]+)>)?\s*wrote:/gi;
+  
+  const parts = cleanText.split(threadPattern);
+  
+  if (parts.length <= 1) {
+    // No thread pattern found, just single message
+    messages.push({
+      type: email.from_email.includes('aibd') ? 'sent' : 'received',
+      from: email.from_name || email.from_email.split('@')[0],
+      fromEmail: email.from_email,
+      to: email.to_email,
+      content: cleanText.replace(/^>+\s*/gm, '').trim(),
+      date: format(new Date(email.received_at), "MMM d, yyyy 'at' h:mm a"),
+      rawDate: new Date(email.received_at)
+    });
+    return messages;
+  }
+  
+  // First part is the latest message
+  const latestContent = parts[0].trim();
+  if (latestContent) {
+    messages.push({
+      type: email.from_email.includes('aibd') ? 'sent' : 'received',
+      from: email.from_name || email.from_email.split('@')[0],
+      fromEmail: email.from_email,
+      to: email.to_email,
+      content: latestContent.replace(/^>+\s*/gm, '').trim(),
+      date: format(new Date(email.received_at), "MMM d, yyyy 'at' h:mm a"),
+      rawDate: new Date(email.received_at)
+    });
+  }
+  
+  // Parse quoted messages - look for lines starting with >
+  const quotedPattern = /On\s+((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun),?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},?\s+\d{4})\s+at\s+(\d{1,2}:\d{2}\s*(?:AM|PM)?),?\s*([^<\n]+)?(?:<([^>]+)>)?\s*wrote:\s*\n([\s\S]*?)(?=On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)|$)/gi;
+  
+  let match;
+  while ((match = quotedPattern.exec(cleanText)) !== null) {
+    const dateStr = match[1];
+    const timeStr = match[2];
+    const senderName = match[3]?.trim() || '';
+    const senderEmail = match[4] || '';
+    let content = match[5] || '';
+    
+    // Clean quoted content (remove > prefixes)
+    content = content
+      .split('\n')
+      .map(line => line.replace(/^>+\s*/, ''))
+      .filter(line => line.trim())
+      .join('\n')
+      .trim();
+    
+    if (content) {
+      const isSent = senderEmail.includes('aibd') || senderName.toLowerCase().includes('me');
+      messages.push({
+        type: isSent ? 'sent' : 'received',
+        from: senderName || senderEmail.split('@')[0] || 'Unknown',
+        fromEmail: senderEmail,
+        to: isSent ? email.from_email : email.to_email,
+        content,
+        date: `${dateStr} at ${timeStr}`,
+        rawDate: new Date(`${dateStr} ${timeStr}`)
+      });
+    }
+  }
+  
+  // Sort by date ascending (oldest first)
+  messages.sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime());
+  
+  return messages;
+}
+
+// Get avatar color based on name
+function getAvatarColor(name: string): string {
+  const colors = [
+    'bg-red-500', 'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 
+    'bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-green-500',
+    'bg-orange-500', 'bg-amber-500'
+  ];
+  const colorIndex = (name || 'U').charCodeAt(0) % colors.length;
+  return colors[colorIndex];
+}
+
+// Single message bubble component
+function MessageBubble({ 
+  message, 
+  isExpanded, 
+  onToggle,
+  isLast 
+}: { 
+  message: ConversationMessage; 
+  isExpanded: boolean; 
+  onToggle: () => void;
+  isLast: boolean;
+}) {
+  const isSent = message.type === 'sent';
+  const initials = message.from.slice(0, 2).toUpperCase();
+  const avatarColor = getAvatarColor(message.from);
+  
+  return (
+    <div 
+      className={cn(
+        "group flex gap-3 py-4 px-4 transition-all",
+        isSent ? "flex-row-reverse" : "",
+        !isLast && "border-b border-border/30"
+      )}
+    >
+      {/* Avatar */}
+      <Avatar className={cn(
+        "w-10 h-10 shrink-0 ring-2 ring-background shadow-md",
+        isSent ? "bg-primary" : avatarColor
+      )}>
+        <AvatarFallback className={cn(
+          "font-semibold text-sm",
+          isSent ? "bg-primary text-primary-foreground" : "text-white"
+        )}>
+          {isSent ? 'Me' : initials}
+        </AvatarFallback>
+      </Avatar>
+      
+      {/* Message Content */}
+      <div className={cn(
+        "flex-1 min-w-0 max-w-[85%]",
+        isSent && "flex flex-col items-end"
+      )}>
+        {/* Header */}
+        <div 
+          onClick={onToggle}
+          className={cn(
+            "flex items-center gap-2 cursor-pointer mb-2",
+            isSent && "flex-row-reverse"
+          )}
+        >
+          <span className="font-semibold text-sm text-foreground">
+            {isSent ? 'Me' : message.from}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {message.date}
+          </span>
+          {!isLast && (
+            <button className="text-muted-foreground hover:text-foreground">
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          )}
+        </div>
+        
+        {/* Message Bubble */}
+        {(isExpanded || isLast) && (
+          <div className={cn(
+            "rounded-2xl px-4 py-3 shadow-sm",
+            isSent 
+              ? "bg-primary text-primary-foreground rounded-tr-md" 
+              : "bg-muted/80 text-foreground rounded-tl-md"
+          )}>
+            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+              {message.content}
+            </p>
+          </div>
+        )}
+        
+        {/* Collapsed preview */}
+        {!isExpanded && !isLast && (
+          <div className={cn(
+            "text-sm text-muted-foreground truncate max-w-md",
+            isSent && "text-right"
+          )}>
+            {message.content.slice(0, 60)}...
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function EmailView({ 
   email, 
   onBack, 
@@ -44,27 +250,29 @@ export function EmailView({
   onDelete,
   onReply 
 }: EmailViewProps) {
-  const senderName = email.from_name || email.from_email.split('@')[0];
-  const senderInitials = senderName.slice(0, 1).toUpperCase();
-  const formattedDate = format(new Date(email.received_at), 'MMM d, yyyy, h:mm a');
-
+  const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
+  
   // Fetch attachments for this email
   const { attachments, getPublicUrl, isImage, formatFileSize } = useAttachments(email.id);
 
-  // Parse email body to extract clean content
-  const { text: cleanText, html: cleanHtml } = useMemo(
-    () => parseEmailBody(email.body_text, email.body_html),
-    [email.body_text, email.body_html]
-  );
-
-  // Generate a consistent color based on sender name
-  const colors = [
-    'bg-red-500', 'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 
-    'bg-blue-500', 'bg-cyan-500', 'bg-teal-500', 'bg-green-500',
-    'bg-orange-500', 'bg-amber-500'
-  ];
-  const colorIndex = senderName.charCodeAt(0) % colors.length;
-  const avatarColor = colors[colorIndex];
+  // Parse conversation thread
+  const messages = useMemo(() => parseConversation(email), [email]);
+  
+  // Toggle message expansion
+  const toggleMessage = (index: number) => {
+    const newExpanded = new Set(expandedMessages);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedMessages(newExpanded);
+  };
+  
+  // Expand all messages
+  const expandAll = () => {
+    setExpandedMessages(new Set(messages.map((_, i) => i)));
+  };
 
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-x-hidden box-border">
@@ -98,7 +306,7 @@ export function EmailView({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem>Mark as unread</DropdownMenuItem>
-            <DropdownMenuItem>Add star</DropdownMenuItem>
+            <DropdownMenuItem onClick={expandAll}>Expand all messages</DropdownMenuItem>
             <DropdownMenuItem>Create filter</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Mute</DropdownMenuItem>
@@ -107,60 +315,43 @@ export function EmailView({
         </DropdownMenu>
       </div>
 
-      {/* Email Content - Vertical scroll only */}
+      {/* Email Content */}
       <ScrollArea className="flex-1 w-full overflow-x-hidden">
         <div className="w-full box-border px-3 sm:px-4 md:px-6 py-3">
-          {/* Subject */}
-          <div className="flex items-start gap-2 pb-2 w-full">
-            <h1 className="flex-1 min-w-0 text-base sm:text-lg md:text-xl font-display font-medium text-foreground leading-tight break-words">
-              {email.subject}
-            </h1>
+          {/* Subject Header */}
+          <div className="flex items-center gap-3 pb-4 border-b border-border mb-4">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-foreground leading-tight">
+                {email.subject}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {messages.length} message{messages.length !== 1 ? 's' : ''} in this conversation
+              </p>
+            </div>
             <Button 
               variant="ghost" 
               size="icon" 
               onClick={onToggleStar}
-              className="shrink-0 h-8 w-8 text-muted-foreground hover:text-foreground -mt-1"
+              className="shrink-0 h-10 w-10 text-muted-foreground hover:text-foreground"
             >
               <Star className={cn(
-                "w-4 h-4",
+                "w-5 h-5",
                 email.is_starred ? "fill-warning text-warning" : ""
               )} />
             </Button>
           </div>
 
-          {/* Sender Info - Compact mobile layout */}
-          <div className="flex items-start gap-2.5 pb-3 w-full border-b border-border/50 mb-3">
-            <Avatar className={cn("w-8 h-8 shrink-0", avatarColor)}>
-              <AvatarFallback className="text-white font-medium text-xs">
-                {senderInitials}
-              </AvatarFallback>
-            </Avatar>
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-1.5 flex-wrap">
-                <span className="font-medium text-sm text-foreground">{senderName}</span>
-                <span className="text-xs text-muted-foreground truncate">&lt;{email.from_email}&gt;</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                <span className="truncate">to {email.to_email.split('@')[0]}</span>
-                <span className="shrink-0">•</span>
-                <span className="shrink-0">{formattedDate}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Email Body - Tight fit */}
-          <div className="w-full overflow-hidden">
-            <div className="prose prose-sm max-w-none dark:prose-invert w-full text-sm leading-relaxed">
-              {cleanHtml ? (
-                <div 
-                  dangerouslySetInnerHTML={{ __html: cleanHtml }}
-                  className="email-content"
-                />
-              ) : (
-                <div className="whitespace-pre-wrap break-words">{cleanText}</div>
-              )}
-            </div>
+          {/* Conversation Thread */}
+          <div className="space-y-0 bg-card rounded-xl border border-border/50 overflow-hidden shadow-sm">
+            {messages.map((message, index) => (
+              <MessageBubble
+                key={index}
+                message={message}
+                isExpanded={expandedMessages.has(index)}
+                onToggle={() => toggleMessage(index)}
+                isLast={index === messages.length - 1}
+              />
+            ))}
           </div>
 
           {/* Attachments Grid */}
@@ -173,20 +364,20 @@ export function EmailView({
         </div>
       </ScrollArea>
 
-      {/* Reply Actions - Mobile optimized */}
+      {/* Reply Actions */}
       <div className="border-t border-border p-3 bg-card shrink-0 w-full box-border">
         <div className="flex items-center gap-2 w-full">
           <Button 
             onClick={onReply} 
             variant="outline"
-            className="gap-2 rounded-full px-4 sm:px-6 text-sm font-medium flex-1 sm:flex-none"
+            className="gap-2 rounded-full px-4 sm:px-6 text-sm font-medium flex-1 sm:flex-none hover:bg-primary hover:text-primary-foreground transition-colors"
           >
             <Reply className="w-4 h-4 shrink-0" />
             <span>Reply</span>
           </Button>
           <Button 
             variant="outline"
-            className="gap-2 rounded-full px-4 sm:px-6 text-sm font-medium flex-1 sm:flex-none"
+            className="gap-2 rounded-full px-4 sm:px-6 text-sm font-medium flex-1 sm:flex-none hover:bg-muted transition-colors"
           >
             <Forward className="w-4 h-4 shrink-0" />
             <span>Forward</span>
