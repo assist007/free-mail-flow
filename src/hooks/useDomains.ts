@@ -119,9 +119,10 @@ export function useEmailAddresses(domainId?: string) {
       .from('email_addresses')
       .insert({
         domain_id: domainId,
-        local_part: localPart,
+        local_part: localPart.toLowerCase(),
         display_name: displayName,
         is_catch_all: isCatchAll,
+        status: 'pending',
       } as any)
       .select()
       .single();
