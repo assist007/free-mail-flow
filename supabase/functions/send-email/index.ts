@@ -17,6 +17,77 @@ interface SendEmailRequest {
   from_name?: string;
   in_reply_to?: string;
   references?: string[];
+  thread_id?: string;
+}
+
+// Helper function to find or create thread_id
+async function getOrCreateThreadId(
+  supabase: any,
+  inReplyTo?: string,
+  references?: string[],
+): Promise<string> {
+  // If replying, find the thread from the original message
+  if (inReplyTo) {
+    // First try by message_id
+    const { data: parentEmail } = await supabase
+      .from("emails")
+      .select("id, thread_id")
+      .eq("message_id", inReplyTo)
+      .maybeSingle();
+    
+    if (parentEmail?.thread_id) {
+      console.log("Found thread_id from in_reply_to:", parentEmail.thread_id);
+      return parentEmail.thread_id;
+    }
+    
+    // If parent email exists but has no thread_id, create one and update it
+    if (parentEmail) {
+      const newThreadId = crypto.randomUUID();
+      console.log("Creating thread_id for parent email:", newThreadId);
+      
+      // Update the parent email with the new thread_id
+      await supabase
+        .from("emails")
+        .update({ thread_id: newThreadId })
+        .eq("id", parentEmail.id);
+      
+      return newThreadId;
+    }
+  }
+  
+  // Check references array for existing thread
+  if (references && references.length > 0) {
+    for (const ref of references) {
+      const { data: refEmail } = await supabase
+        .from("emails")
+        .select("id, thread_id")
+        .eq("message_id", ref)
+        .maybeSingle();
+      
+      if (refEmail?.thread_id) {
+        console.log("Found thread_id from references:", refEmail.thread_id);
+        return refEmail.thread_id;
+      }
+      
+      // If ref email exists but has no thread_id, create one and update it
+      if (refEmail) {
+        const newThreadId = crypto.randomUUID();
+        console.log("Creating thread_id for ref email:", newThreadId);
+        
+        await supabase
+          .from("emails")
+          .update({ thread_id: newThreadId })
+          .eq("id", refEmail.id);
+        
+        return newThreadId;
+      }
+    }
+  }
+  
+  // Generate new thread_id using crypto
+  const newThreadId = crypto.randomUUID();
+  console.log("Generated new thread_id:", newThreadId);
+  return newThreadId;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -80,6 +151,10 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Get or create thread_id for proper threading
+    const threadId = await getOrCreateThreadId(supabase, in_reply_to, references);
+    console.log("Using thread_id:", threadId);
+
     const { data: savedEmail, error: dbError } = await supabase
       .from("emails")
       .insert({
@@ -92,6 +167,7 @@ const handler = async (req: Request): Promise<Response> => {
         message_id: emailResponse.id || null,
         in_reply_to: in_reply_to || null,
         references: references || null,
+        thread_id: threadId,
         is_sent: true,
         is_read: true,
         folder: "sent",

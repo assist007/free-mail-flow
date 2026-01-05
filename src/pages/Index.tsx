@@ -160,7 +160,7 @@ const Index = () => {
     in_reply_to?: string;
     references?: string[];
   }) => {
-    const { error } = await sendEmail({
+    const { data, error } = await sendEmail({
       ...email,
       from_name: email.from_name || 'Me',
     });
@@ -168,6 +168,15 @@ const Index = () => {
     if (error) {
       throw error;
     }
+
+    // If replying, update the selected email to trigger a thread refresh
+    if (selectedEmail && data) {
+      // Update selected email to have the same thread_id (ensures refresh)
+      setSelectedEmail(prev => prev ? { ...prev, thread_id: data.thread_id } : null);
+    }
+    
+    // Refetch emails to update the list
+    refetch();
   };
 
   const webhookUrl = `${supabaseUrl}/functions/v1/receive-email`;

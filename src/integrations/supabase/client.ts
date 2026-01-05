@@ -21,6 +21,7 @@ export type Email = {
   message_id: string | null
   in_reply_to: string | null
   references: string[] | null
+  thread_id: string | null
   is_read: boolean
   is_starred: boolean
   is_archived: boolean
@@ -45,6 +46,7 @@ export type EmailInsert = {
   message_id?: string | null
   in_reply_to?: string | null
   references?: string[] | null
+  thread_id?: string | null
   is_read?: boolean
   is_starred?: boolean
   is_archived?: boolean
