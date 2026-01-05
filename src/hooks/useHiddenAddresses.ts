@@ -4,7 +4,6 @@ interface HiddenAddress {
   localPart: string;
   domain: string;
   hiddenAt: string;
-  isBlocked: boolean; // blocked = permanently hidden, won't auto-restore
 }
 
 const STORAGE_KEY = 'flowmail_hidden_addresses';
@@ -45,38 +44,6 @@ export function useHiddenAddresses(domain: string) {
         localPart: localPart.toLowerCase(),
         domain: domain.toLowerCase(),
         hiddenAt: new Date().toISOString(),
-        isBlocked: false,
-      };
-      const updated = [...all, newAddress];
-      saveAddresses(updated);
-      setHiddenAddresses(prev => [...prev, newAddress]);
-    }
-  }, [domain]);
-
-  // Block an address (permanent, won't auto-restore)
-  const blockAddress = useCallback((localPart: string) => {
-    const all = getStoredAddresses();
-    const existingIndex = all.findIndex(
-      a => a.localPart.toLowerCase() === localPart.toLowerCase() && 
-           a.domain.toLowerCase() === domain.toLowerCase()
-    );
-    
-    if (existingIndex >= 0) {
-      all[existingIndex].isBlocked = true;
-      saveAddresses(all);
-      setHiddenAddresses(prev => 
-        prev.map(a => 
-          a.localPart.toLowerCase() === localPart.toLowerCase() 
-            ? { ...a, isBlocked: true } 
-            : a
-        )
-      );
-    } else {
-      const newAddress: HiddenAddress = {
-        localPart: localPart.toLowerCase(),
-        domain: domain.toLowerCase(),
-        hiddenAt: new Date().toISOString(),
-        isBlocked: true,
       };
       const updated = [...all, newAddress];
       saveAddresses(updated);
@@ -104,19 +71,10 @@ export function useHiddenAddresses(domain: string) {
     );
   }, [hiddenAddresses]);
 
-  // Check if an address is blocked
-  const isBlocked = useCallback((localPart: string) => {
-    return hiddenAddresses.some(
-      a => a.localPart.toLowerCase() === localPart.toLowerCase() && a.isBlocked
-    );
-  }, [hiddenAddresses]);
-
   return {
     hiddenAddresses,
     hideAddress,
-    blockAddress,
     restoreAddress,
     isHidden,
-    isBlocked,
   };
 }

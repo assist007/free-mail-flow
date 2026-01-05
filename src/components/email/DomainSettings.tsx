@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw, EyeOff, Eye, Ban, RotateCcw } from 'lucide-react';
+import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw, EyeOff, Eye, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -355,10 +355,8 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
   const { 
     hiddenAddresses, 
     hideAddress, 
-    blockAddress, 
     restoreAddress, 
     isHidden, 
-    isBlocked 
   } = useHiddenAddresses(domain.domain);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'hidden'>('active');
@@ -381,15 +379,6 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
     toast({
       title: 'Address hidden',
       description: `${localPart}@${domain.domain} is now hidden. You can restore it anytime.`,
-    });
-  };
-
-  const handleBlock = (localPart: string) => {
-    blockAddress(localPart);
-    toast({
-      title: 'Address blocked',
-      description: `${localPart}@${domain.domain} is now blocked permanently.`,
-      variant: 'destructive',
     });
   };
 
@@ -461,7 +450,7 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
             <Alert className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                এই list automatically তৈরি হয় received emails থেকে। Unwanted address hide বা block করতে পারেন।
+                এই list automatically তৈরি হয় received emails থেকে। Unwanted address hide করতে পারেন।
               </AlertDescription>
             </Alert>
 
@@ -506,26 +495,15 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
                           {new Date(addr.lastReceived).toLocaleDateString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleHide(addr.localPart)}
-                              title="Hide address"
-                            >
-                              <EyeOff className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => handleBlock(addr.localPart)}
-                              title="Block address permanently"
-                            >
-                              <Ban className="w-4 h-4 text-destructive" />
-                            </Button>
-                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleHide(addr.localPart)}
+                            title="Hide address"
+                          >
+                            <EyeOff className="w-4 h-4 text-muted-foreground" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -540,7 +518,7 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
             <Alert className="mb-4">
               <EyeOff className="h-4 w-4" />
               <AlertDescription>
-                Hidden addresses এখানে দেখা যায়। Blocked addresses নতুন email আসলেও auto-restore হবে না।
+                Hidden addresses এখানে দেখা যায়। Restore করলে আবার Active tab এ দেখাবে।
               </AlertDescription>
             </Alert>
 
@@ -568,17 +546,10 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
                           {addr.localPart}@{domain.domain}
                         </TableCell>
                         <TableCell>
-                          {addr.isBlocked ? (
-                            <Badge variant="destructive" className="flex items-center gap-1 w-fit">
-                              <Ban className="w-3 h-3" />
-                              Blocked
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="flex items-center gap-1 w-fit">
-                              <EyeOff className="w-3 h-3" />
-                              Hidden
-                            </Badge>
-                          )}
+                          <Badge variant="secondary" className="flex items-center gap-1 w-fit">
+                            <EyeOff className="w-3 h-3" />
+                            Hidden
+                          </Badge>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
                           {new Date(addr.hiddenAt).toLocaleDateString()}
