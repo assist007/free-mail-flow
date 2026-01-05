@@ -25,7 +25,7 @@ interface IncomingEmail {
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  console.log("Receive email webhook called");
+  console.log("Receive email webhook called - STRICT ALLOWLIST v2");
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
