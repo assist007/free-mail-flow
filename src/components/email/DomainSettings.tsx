@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw, EyeOff, Eye, RotateCcw } from 'lucide-react';
+import { Plus, Globe, Check, Copy, Trash2, AlertCircle, Mail, ChevronRight, Search, RefreshCw, EyeOff, Eye, RotateCcw, Clock, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useDomains, useEmailAddresses } from '@/hooks/useDomains';
-import { useAutoAddresses } from '@/hooks/useAutoAddresses';
 import { useHiddenAddresses } from '@/hooks/useHiddenAddresses';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -52,25 +51,17 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
   const [addressCounts, setAddressCounts] = useState<Record<string, number>>({});
 
-  // Fetch address counts from received emails (auto-detected)
+  // Fetch address counts from email_addresses table
   useEffect(() => {
     const fetchCounts = async () => {
       const counts: Record<string, number> = {};
       for (const domain of domains) {
-        // Count unique addresses from received emails
-        const { data: emails } = await supabase
-          .from('emails')
-          .select('to_email')
-          .ilike('to_email', `%@${domain.domain}%`);
+        const { count } = await supabase
+          .from('email_addresses')
+          .select('*', { count: 'exact', head: true })
+          .eq('domain_id', domain.id);
         
-        // Extract unique local parts
-        const uniqueAddresses = new Set<string>();
-        emails?.forEach(email => {
-          const match = email.to_email?.match(/^([^@]+)@/);
-          if (match) uniqueAddresses.add(match[1].toLowerCase());
-        });
-        
-        counts[domain.id] = uniqueAddresses.size;
+        counts[domain.id] = count || 0;
       }
       setAddressCounts(counts);
     };
@@ -315,7 +306,7 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
             </CardContent>
           </Card>
 
-          {/* Email Addresses Section - Cloudflare style */}
+          {/* Email Addresses Section */}
           {selectedDomain && (
             <EmailAddressesSection 
               domain={selectedDomain}
@@ -323,18 +314,18 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
             />
           )}
 
-          {/* DNS Configuration Help */}
+          {/* Important Notice */}
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>How to verify?</AlertTitle>
+            <AlertTitle>Strict Address Control</AlertTitle>
             <AlertDescription className="mt-2 space-y-2">
               <p>
-                If your <strong>Cloudflare Email Routing</strong> and Worker are already active, click
-                <strong> Verify</strong> next to the domain to change the status from <strong>Pending</strong> to
-                <strong> Verified</strong>.
+                শুধুমাত্র এখান থেকে create করা email addresses-এই mail receive হবে।
+                Random/unknown addresses এ mail reject হবে।
               </p>
               <p className="text-sm text-muted-foreground">
-                Note: this “Verified” badge is a FlowMail status flag (we don’t automatically check DNS here).
+                Status: <strong>Pending</strong> = address তৈরি হয়েছে, কিন্তু এখনো mail আসেনি।
+                <strong> Active</strong> = প্রথম mail receive হয়েছে।
               </p>
             </AlertDescription>
           </Alert>
@@ -351,7 +342,7 @@ interface EmailAddressesSectionProps {
 
 function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) {
   const { toast } = useToast();
-  const { addresses: autoAddresses, loading: autoLoading, refetch: refetchAuto } = useAutoAddresses(domain.domain);
+  const { addresses, loading, refetch, addAddress, deleteAddress } = useEmailAddresses(domain.id);
   const { 
     hiddenAddresses, 
     hideAddress, 
@@ -360,13 +351,15 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
   } = useHiddenAddresses(domain.domain);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'hidden'>('active');
+  const [newLocalPart, setNewLocalPart] = useState('');
+  const [addingAddress, setAddingAddress] = useState(false);
 
   // Filter visible addresses (not hidden)
-  const visibleAddresses = autoAddresses.filter(addr => !isHidden(addr.localPart));
+  const visibleAddresses = addresses.filter(addr => !isHidden(addr.local_part));
   
   const filteredAddresses = visibleAddresses.filter(addr => {
     if (!searchQuery) return true;
-    return addr.localPart.toLowerCase().includes(searchQuery.toLowerCase());
+    return addr.local_part.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const filteredHidden = hiddenAddresses.filter(addr => {
@@ -374,11 +367,49 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
     return addr.localPart.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
+  const handleAddAddress = async () => {
+    if (!newLocalPart.trim()) return;
+
+    setAddingAddress(true);
+    const { error } = await addAddress(newLocalPart.trim().toLowerCase());
+    setAddingAddress(false);
+
+    if (error) {
+      toast({
+        title: 'Failed to add address',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Address created',
+        description: `${newLocalPart}@${domain.domain} is now ready to receive emails.`,
+      });
+      setNewLocalPart('');
+    }
+  };
+
+  const handleDeleteAddress = async (id: string, localPart: string) => {
+    const { error } = await deleteAddress(id);
+    if (error) {
+      toast({
+        title: 'Failed to delete',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Address deleted',
+        description: `${localPart}@${domain.domain} has been permanently removed.`,
+      });
+    }
+  };
+
   const handleHide = (localPart: string) => {
     hideAddress(localPart);
     toast({
       title: 'Address hidden',
-      description: `${localPart}@${domain.domain} is now hidden. You can restore it anytime.`,
+      description: `${localPart}@${domain.domain} is now hidden from view.`,
     });
   };
 
@@ -397,19 +428,37 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
           <div>
             <CardTitle className="text-lg flex items-center gap-2">
               <Mail className="w-5 h-5" />
-              Active Addresses
-              <Badge variant="secondary" className="ml-2">
-                Auto-detected
+              Email Addresses
+              <Badge variant="outline" className="ml-2">
+                @{domain.domain}
               </Badge>
             </CardTitle>
             <CardDescription className="mt-1">
-              Addresses detected from received emails. Synced automatically with Cloudflare.
+              Create and manage email addresses for this domain. Only registered addresses will receive emails.
             </CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>Back</Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Create New Address */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-4 bg-muted/50 rounded-lg border border-border">
+          <div className="flex-1 flex items-center gap-2">
+            <Input
+              placeholder="username"
+              value={newLocalPart}
+              onChange={(e) => setNewLocalPart(e.target.value.replace(/[^a-zA-Z0-9._-]/g, ''))}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddAddress()}
+              className="flex-1"
+            />
+            <span className="text-muted-foreground font-mono text-sm">@{domain.domain}</span>
+          </div>
+          <Button onClick={handleAddAddress} disabled={addingAddress || !newLocalPart.trim()} size="sm" className="shrink-0">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Address
+          </Button>
+        </div>
+
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'active' | 'hidden')}>
           <TabsList className="grid w-full grid-cols-2">
@@ -436,7 +485,7 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
             </div>
             <Button 
               variant="outline" 
-              onClick={() => refetchAuto()}
+              onClick={() => refetch()}
               className="shrink-0"
             >
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -446,16 +495,8 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
 
           {/* Active Addresses Tab */}
           <TabsContent value="active" className="mt-4">
-            {/* Info Alert */}
-            <Alert className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                এই list automatically তৈরি হয় received emails থেকে। Unwanted address hide করতে পারেন।
-              </AlertDescription>
-            </Alert>
-
             {/* Addresses Table */}
-            {autoLoading ? (
+            {loading ? (
               <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
                   <div key={i} className="h-12 bg-muted rounded animate-pulse" />
@@ -468,7 +509,7 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
                 <p className="text-xs mt-1">
                   {visibleAddresses.length === 0 && hiddenAddresses.length > 0 
                     ? "All addresses are hidden. Check the Hidden tab." 
-                    : `Send an email to any address @${domain.domain} to see it here`}
+                    : "Create an email address above to get started."}
                 </p>
               </div>
             ) : (
@@ -477,32 +518,54 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead className="font-medium">Email Address</TableHead>
-                      <TableHead className="font-medium text-center">Emails</TableHead>
-                      <TableHead className="font-medium hidden sm:table-cell">Last Received</TableHead>
+                      <TableHead className="font-medium text-center">Status</TableHead>
+                      <TableHead className="font-medium hidden sm:table-cell">First Received</TableHead>
                       <TableHead className="font-medium text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredAddresses.map((addr) => (
-                      <TableRow key={addr.localPart}>
+                      <TableRow key={addr.id}>
                         <TableCell className="font-mono text-sm">
-                          {addr.fullAddress}
+                          {addr.local_part}@{domain.domain}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline">{addr.emailCount}</Badge>
+                          {addr.status === 'active' ? (
+                            <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Pending
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
-                          {new Date(addr.lastReceived).toLocaleDateString()}
+                          {addr.first_received_at 
+                            ? new Date(addr.first_received_at).toLocaleDateString()
+                            : '—'
+                          }
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right space-x-1">
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => handleHide(addr.localPart)}
+                            onClick={() => handleHide(addr.local_part)}
                             title="Hide address"
                           >
                             <EyeOff className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleDeleteAddress(addr.id, addr.local_part)}
+                            title="Delete permanently"
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -526,7 +589,7 @@ function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) 
               <div className="text-center py-8 text-muted-foreground border border-dashed border-border rounded-lg">
                 <EyeOff className="w-10 h-10 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No hidden addresses</p>
-                <p className="text-xs mt-1">Hidden or blocked addresses will appear here</p>
+                <p className="text-xs mt-1">Hidden addresses will appear here</p>
               </div>
             ) : (
               <div className="border border-border rounded-lg overflow-hidden">
