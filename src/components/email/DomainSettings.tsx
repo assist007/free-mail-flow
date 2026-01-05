@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useDomains, useEmailAddresses } from '@/hooks/useDomains';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
@@ -69,8 +70,37 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
     }
   };
 
-  const handleVerify = async (id: string) => {
+  const handleVerify = async (id: string, domainName: string) => {
     setVerifyingDomainId(id);
+
+    // Check if any emails have been received for this domain
+    const { data: emails, error: emailError } = await supabase
+      .from('emails')
+      .select('id')
+      .ilike('to_addresses', `%@${domainName}%`)
+      .limit(1);
+
+    if (emailError) {
+      setVerifyingDomainId(null);
+      toast({
+        title: 'Verification failed',
+        description: emailError.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!emails || emails.length === 0) {
+      setVerifyingDomainId(null);
+      toast({
+        title: 'Not verified yet',
+        description: `No emails received for @${domainName}. Send a test email first, then try again.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Emails found - mark as verified
     const { error } = await verifyDomain(id);
     setVerifyingDomainId(null);
 
@@ -84,8 +114,8 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
     }
 
     toast({
-      title: 'Domain verified',
-      description: 'Status updated to Verified.',
+      title: 'Domain verified!',
+      description: 'Cloudflare Email Routing is working correctly.',
     });
   };
 
@@ -219,7 +249,7 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
                             disabled={verifyingDomainId === domain.id}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleVerify(domain.id);
+                              handleVerify(domain.id, domain.domain);
                             }}
                           >
                             {verifyingDomainId === domain.id ? 'Verifying...' : 'Verify'}
@@ -257,7 +287,7 @@ export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
           {/* DNS Configuration Help */}
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Finish setup</AlertTitle>
+            <AlertTitle>How to verify?</AlertTitle>
             <AlertDescription className="mt-2 space-y-2">
               <p>
                 If your <strong>Cloudflare Email Routing</strong> and Worker are already active, click
