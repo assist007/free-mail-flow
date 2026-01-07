@@ -21,24 +21,11 @@ import {
 interface DomainSettingsProps {
   onClose: () => void;
   webhookUrl: string;
-  canManageDomains: boolean;
-  allowedDomainIds?: string[];
-  domainAccessById?: Record<string, { mailbox_limit: number }>;
-  currentUserId?: string | null;
 }
 
-export function DomainSettings({
-  onClose,
-  webhookUrl,
-  canManageDomains,
-  allowedDomainIds,
-  domainAccessById,
-  currentUserId,
-}: DomainSettingsProps) {
+export function DomainSettings({ onClose, webhookUrl }: DomainSettingsProps) {
   const { toast } = useToast();
-  const { domains, loading, addDomain, verifyDomain, deleteDomain } = useDomains(
-    canManageDomains ? undefined : allowedDomainIds
-  );
+  const { domains, loading, addDomain, verifyDomain, deleteDomain } = useDomains();
   const [newDomain, setNewDomain] = useState('');
   const [selectedDomainId, setSelectedDomainId] = useState<string | null>(null);
   const [addingDomain, setAddingDomain] = useState(false);
@@ -53,11 +40,6 @@ export function DomainSettings({
 
   // Check if RESEND_API_KEY exists and is valid
   useEffect(() => {
-    if (!canManageDomains) {
-      setCheckingResendKey(false);
-      return;
-    }
-
     const checkResendKey = async () => {
       setCheckingResendKey(true);
       try {
@@ -90,16 +72,11 @@ export function DomainSettings({
     const fetchCounts = async () => {
       const counts: Record<string, number> = {};
       for (const domain of domains) {
-        let query = supabase
+        const { count } = await supabase
           .from('email_addresses')
           .select('*', { count: 'exact', head: true })
           .eq('domain_id', domain.id);
-
-        if (!canManageDomains && currentUserId) {
-          query = query.eq('created_by', currentUserId);
-        }
-
-        const { count } = await query;
+        
         counts[domain.id] = count || 0;
       }
       setAddressCounts(counts);
@@ -107,7 +84,7 @@ export function DomainSettings({
     if (domains.length > 0) {
       fetchCounts();
     }
-  }, [domains, canManageDomains, currentUserId]);
+  }, [domains]);
 
   const handleAddDomain = async () => {
     if (!newDomain.trim()) return;
@@ -196,11 +173,7 @@ export function DomainSettings({
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border gap-2">
         <div className="min-w-0">
           <h2 className="text-lg sm:text-xl font-semibold truncate">Domain Settings</h2>
-          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
-            {canManageDomains
-              ? 'Manage your email domains and addresses'
-              : 'Create email addresses within your assigned domains'}
-          </p>
+          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Manage your email domains and addresses</p>
         </div>
         <Button variant="ghost" onClick={onClose} size="sm">Close</Button>
       </div>
@@ -217,191 +190,187 @@ export function DomainSettings({
             </AlertDescription>
           </Alert>
 
-          {canManageDomains && (
-            <>
-              {/* Webhook URL */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base sm:text-lg">Webhook URL</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">
-                    Configure this URL in your email routing service (Cloudflare Workers)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
+          {/* Webhook URL */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg">Webhook URL</CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Configure this URL in your email routing service (Cloudflare Workers)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Input 
+                  value={webhookUrl} 
+                  readOnly 
+                  className="font-mono text-xs sm:text-sm bg-muted flex-1"
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => copyToClipboard(webhookUrl)}
+                  className="shrink-0"
+                >
+                  <Copy className="w-4 h-4 mr-2 sm:mr-0" />
+                  <span className="sm:hidden">Copy</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Resend API Key Setup */}
+          <Card className={hasResendKey && resendKeyValid ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Send className={`w-4 h-4 sm:w-5 sm:h-5 ${hasResendKey && resendKeyValid ? 'text-green-500' : 'text-amber-500'}`} />
+                Email Sending (Resend)
+                {checkingResendKey ? (
+                  <Badge variant="secondary" className="ml-2">
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Checking...
+                  </Badge>
+                ) : hasResendKey && resendKeyValid ? (
+                  <Badge variant="default" className="bg-green-600 hover:bg-green-600 ml-2">
+                    <Check className="w-3 h-3 mr-1" /> Active
+                  </Badge>
+                ) : hasResendKey && !resendKeyValid ? (
+                  <Badge variant="destructive" className="ml-2">
+                    <AlertCircle className="w-3 h-3 mr-1" /> Invalid Key
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="ml-2">Setup Required</Badge>
+                )}
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                {hasResendKey && resendKeyValid
+                  ? 'Resend API key configured and working!'
+                  : hasResendKey && !resendKeyValid
+                  ? 'API key exists but is invalid. Please update it.'
+                  : 'To send emails from your domain, add your Resend API key.'
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {/* Show Resend verified domains */}
+              {hasResendKey && resendKeyValid && resendDomains.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Verified domains in Resend:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {resendDomains.map((d) => (
+                      <Badge key={d.id} variant={d.status === 'verified' ? 'default' : 'secondary'} className={d.status === 'verified' ? 'bg-green-600' : ''}>
+                        <Globe className="w-3 h-3 mr-1" />
+                        {d.name}
+                        {d.status === 'verified' && <Check className="w-3 h-3 ml-1" />}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {(!hasResendKey || !resendKeyValid) && !checkingResendKey && (
+                <>
+                  <Alert className="border-amber-500/30">
+                    <Key className="h-4 w-4 text-amber-500" />
+                    <AlertDescription className="text-sm">
+                      <strong>Steps to enable email sending:</strong>
+                      <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground">
+                        <li>Go to <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a> and create an account</li>
+                        <li>Add & verify your domain in <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline">Resend Domains</a></li>
+                        <li>Create an API key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">API Keys</a></li>
+                        <li>Add the API key to Lovable Cloud Secrets as <code className="bg-muted px-1 py-0.5 rounded">RESEND_API_KEY</code></li>
+                      </ol>
+                    </AlertDescription>
+                  </Alert>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <Input 
-                      value={webhookUrl} 
-                      readOnly 
-                      className="font-mono text-xs sm:text-sm bg-muted flex-1"
-                    />
                     <Button 
-                      variant="outline" 
+                      onClick={async () => {
+                        setVerifyingResend(true);
+                        const { data, error } = await supabase.functions.invoke('check-resend-key');
+                        setVerifyingResend(false);
+                        console.log("Re-check response:", data, error);
+                        if (!error && data?.hasKey && data?.isValid) {
+                          setHasResendKey(true);
+                          setResendKeyValid(true);
+                          if (data.domains) {
+                            setResendDomains(data.domains);
+                          }
+                          toast({
+                            title: 'Resend API Key Active!',
+                            description: 'Your API key is configured and working.',
+                          });
+                        } else if (data?.hasKey && !data?.isValid) {
+                          setHasResendKey(true);
+                          setResendKeyValid(false);
+                          toast({
+                            title: 'Invalid API Key',
+                            description: 'The RESEND_API_KEY secret exists but is invalid. Please update it.',
+                            variant: 'destructive',
+                          });
+                        } else {
+                          toast({
+                            title: 'No API Key Found',
+                            description: 'Please add RESEND_API_KEY to your Cloud Secrets.',
+                            variant: 'destructive',
+                          });
+                        }
+                      }}
+                      disabled={verifyingResend}
+                      variant="outline"
                       size="sm"
-                      onClick={() => copyToClipboard(webhookUrl)}
                       className="shrink-0"
                     >
-                      <Copy className="w-4 h-4 mr-2 sm:mr-0" />
-                      <span className="sm:hidden">Copy</span>
+                      <RefreshCw className={`w-4 h-4 mr-2 ${verifyingResend ? 'animate-spin' : ''}`} />
+                      {verifyingResend ? 'Checking...' : 'Check API Key Status'}
                     </Button>
+                    <a 
+                      href="https://resend.com/api-keys" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline flex items-center gap-1"
+                    >
+                      Get API Key from Resend <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
-                </CardContent>
-              </Card>
+                </>
+              )}
+              {hasResendKey && resendKeyValid && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span>API key is working! You can send emails from domains listed above.</span>
+                  <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
+                    Manage Domains <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-              {/* Resend API Key Setup */}
-              <Card className={hasResendKey && resendKeyValid ? 'border-green-500/50 bg-green-500/5' : 'border-amber-500/50 bg-amber-500/5'}>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                    <Send className={`w-4 h-4 sm:w-5 sm:h-5 ${hasResendKey && resendKeyValid ? 'text-green-500' : 'text-amber-500'}`} />
-                    Email Sending (Resend)
-                    {checkingResendKey ? (
-                      <Badge variant="secondary" className="ml-2">
-                        <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Checking...
-                      </Badge>
-                    ) : hasResendKey && resendKeyValid ? (
-                      <Badge variant="default" className="bg-green-600 hover:bg-green-600 ml-2">
-                        <Check className="w-3 h-3 mr-1" /> Active
-                      </Badge>
-                    ) : hasResendKey && !resendKeyValid ? (
-                      <Badge variant="destructive" className="ml-2">
-                        <AlertCircle className="w-3 h-3 mr-1" /> Invalid Key
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="ml-2">Setup Required</Badge>
-                    )}
-                  </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">
-                    {hasResendKey && resendKeyValid
-                      ? 'Resend API key configured and working!'
-                      : hasResendKey && !resendKeyValid
-                      ? 'API key exists but is invalid. Please update it.'
-                      : 'To send emails from your domain, add your Resend API key.'
-                    }
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Show Resend verified domains */}
-                  {hasResendKey && resendKeyValid && resendDomains.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Verified domains in Resend:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {resendDomains.map((d) => (
-                          <Badge key={d.id} variant={d.status === 'verified' ? 'default' : 'secondary'} className={d.status === 'verified' ? 'bg-green-600' : ''}>
-                            <Globe className="w-3 h-3 mr-1" />
-                            {d.name}
-                            {d.status === 'verified' && <Check className="w-3 h-3 ml-1" />}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {(!hasResendKey || !resendKeyValid) && !checkingResendKey && (
-                    <>
-                      <Alert className="border-amber-500/30">
-                        <Key className="h-4 w-4 text-amber-500" />
-                        <AlertDescription className="text-sm">
-                          <strong>Steps to enable email sending:</strong>
-                          <ol className="list-decimal list-inside mt-2 space-y-1 text-muted-foreground">
-                            <li>Go to <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">resend.com</a> and create an account</li>
-                            <li>Add & verify your domain in <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline">Resend Domains</a></li>
-                            <li>Create an API key from <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary underline">API Keys</a></li>
-                            <li>Add the API key to Lovable Cloud Secrets as <code className="bg-muted px-1 py-0.5 rounded">RESEND_API_KEY</code></li>
-                          </ol>
-                        </AlertDescription>
-                      </Alert>
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                        <Button 
-                          onClick={async () => {
-                            setVerifyingResend(true);
-                            const { data, error } = await supabase.functions.invoke('check-resend-key');
-                            setVerifyingResend(false);
-                            console.log("Re-check response:", data, error);
-                            if (!error && data?.hasKey && data?.isValid) {
-                              setHasResendKey(true);
-                              setResendKeyValid(true);
-                              if (data.domains) {
-                                setResendDomains(data.domains);
-                              }
-                              toast({
-                                title: 'Resend API Key Active!',
-                                description: 'Your API key is configured and working.',
-                              });
-                            } else if (data?.hasKey && !data?.isValid) {
-                              setHasResendKey(true);
-                              setResendKeyValid(false);
-                              toast({
-                                title: 'Invalid API Key',
-                                description: 'The RESEND_API_KEY secret exists but is invalid. Please update it.',
-                                variant: 'destructive',
-                              });
-                            } else {
-                              toast({
-                                title: 'No API Key Found',
-                                description: 'Please add RESEND_API_KEY to your Cloud Secrets.',
-                                variant: 'destructive',
-                              });
-                            }
-                          }}
-                          disabled={verifyingResend}
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0"
-                        >
-                          <RefreshCw className={`w-4 h-4 mr-2 ${verifyingResend ? 'animate-spin' : ''}`} />
-                          {verifyingResend ? 'Checking...' : 'Check API Key Status'}
-                        </Button>
-                        <a 
-                          href="https://resend.com/api-keys" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary underline flex items-center gap-1"
-                        >
-                          Get API Key from Resend <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    </>
-                  )}
-                  {hasResendKey && resendKeyValid && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span>API key is working! You can send emails from domains listed above.</span>
-                      <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="text-primary underline flex items-center gap-1">
-                        Manage Domains <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Add Domain */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base sm:text-lg flex items-center gap-2">
-                    <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
-                    Add Domain
-                  </CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">
-                    Add a custom domain to receive emails
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <Input
-                      placeholder="example.com"
-                      value={newDomain}
-                      onChange={(e) => setNewDomain(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
-                      className="flex-1"
-                    />
-                    <Button onClick={handleAddDomain} disabled={addingDomain} size="sm" className="shrink-0">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
+          {/* Add Domain */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Globe className="w-4 h-4 sm:w-5 sm:h-5" />
+                Add Domain
+              </CardTitle>
+              <CardDescription className="text-xs sm:text-sm">
+                Add a custom domain to receive emails
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <Input
+                  placeholder="example.com"
+                  value={newDomain}
+                  onChange={(e) => setNewDomain(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddDomain()}
+                  className="flex-1"
+                />
+                <Button onClick={handleAddDomain} disabled={addingDomain} size="sm" className="shrink-0">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Domain List */}
           <Card>
@@ -460,7 +429,7 @@ export function DomainSettings({
                             )}
                           </Badge>
 
-                          {canManageDomains && !domain.is_verified && (
+                          {!domain.is_verified && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -476,24 +445,22 @@ export function DomainSettings({
                           )}
 
                           <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                          {canManageDomains && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteDomain(domain.id);
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteDomain(domain.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
                         </div>
                       </div>
                       
                       {/* Activation Instructions for Pending Domains */}
-                      {canManageDomains && !domain.is_verified && (
+                      {!domain.is_verified && (
                         <div className="mt-2 p-2 bg-amber-500/10 rounded border border-amber-500/20 text-xs text-muted-foreground">
                           <p className="font-medium text-amber-600 dark:text-amber-400 mb-1">
                             📧 To activate this domain:
@@ -522,9 +489,6 @@ export function DomainSettings({
             <EmailAddressesSection 
               domain={selectedDomain}
               onClose={() => setSelectedDomainId(null)}
-              mailboxLimit={domainAccessById?.[selectedDomain.id]?.mailbox_limit}
-              canManageDomains={canManageDomains}
-              currentUserId={currentUserId}
             />
           )}
 
@@ -552,23 +516,11 @@ export function DomainSettings({
 interface EmailAddressesSectionProps {
   domain: { id: string; domain: string };
   onClose: () => void;
-  mailboxLimit?: number;
-  canManageDomains: boolean;
-  currentUserId?: string | null;
 }
 
-function EmailAddressesSection({
-  domain,
-  onClose,
-  mailboxLimit,
-  canManageDomains,
-  currentUserId,
-}: EmailAddressesSectionProps) {
+function EmailAddressesSection({ domain, onClose }: EmailAddressesSectionProps) {
   const { toast } = useToast();
-  const { addresses, loading, addAddress, deleteAddress, refetch } = useEmailAddresses(
-    domain.id,
-    canManageDomains ? undefined : currentUserId
-  );
+  const { addresses, loading, addAddress, deleteAddress, refetch } = useEmailAddresses(domain.id);
   const [searchQuery, setSearchQuery] = useState('');
   const [newLocalPart, setNewLocalPart] = useState('');
   const [addingAddress, setAddingAddress] = useState(false);
@@ -587,15 +539,6 @@ function EmailAddressesSection({
       toast({
         title: 'Invalid address',
         description: 'Only letters, numbers, dots, hyphens and underscores allowed',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (mailboxLimit !== undefined && addresses.length >= mailboxLimit) {
-      toast({
-        title: 'Limit reached',
-        description: `Your mailbox limit for ${domain.domain} is ${mailboxLimit}. Contact support to increase it.`,
         variant: 'destructive',
       });
       return;

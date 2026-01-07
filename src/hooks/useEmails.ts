@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, Email, EmailInsert } from '@/integrations/supabase/client';
 
-export function useEmails(folder: string = 'inbox', allowedDomains?: string[]) {
+export function useEmails(folder: string = 'inbox') {
   const [emails, setEmails] = useState<Email[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -9,14 +9,8 @@ export function useEmails(folder: string = 'inbox', allowedDomains?: string[]) {
   const fetchEmails = useCallback(async () => {
     setLoading(true);
     setError(null);
-
+    
     try {
-      if (allowedDomains && allowedDomains.length === 0) {
-        setEmails([]);
-        setLoading(false);
-        return;
-      }
-
       let query = supabase
         .from('emails')
         .select('*')
@@ -41,13 +35,6 @@ export function useEmails(folder: string = 'inbox', allowedDomains?: string[]) {
         query = query.eq('folder', folder).neq('is_trash', true);
       }
 
-      if (allowedDomains && allowedDomains.length > 0) {
-        const domainFilters = allowedDomains
-          .map((domain) => `to_email.ilike.%@${domain}`)
-          .join(',');
-        query = query.or(domainFilters);
-      }
-
       const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
@@ -58,7 +45,7 @@ export function useEmails(folder: string = 'inbox', allowedDomains?: string[]) {
     } finally {
       setLoading(false);
     }
-  }, [folder, allowedDomains]);
+  }, [folder]);
 
   useEffect(() => {
     fetchEmails();

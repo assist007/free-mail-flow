@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react';
-import { Search, RefreshCw, Moon, Sun, Menu, HelpCircle, Pencil, Globe, LogOut, Shield } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, RefreshCw, Moon, Sun, Menu, Settings, HelpCircle, Pencil, Globe } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Sidebar } from '@/components/email/Sidebar';
@@ -21,9 +21,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-import { AuthScreen } from '@/components/auth/AuthScreen';
-import { useAuth } from '@/context/AuthContext';
-import { useUserDomainAccess } from '@/hooks/usePermissions';
 
 interface EmailAddressWithDomain {
   id: string;
@@ -47,10 +44,7 @@ const Index = () => {
   const [forwardAttachments, setForwardAttachments] = useState<Array<{ filename: string; contentType: string; size: number; url: string }>>([]);
   
   const { toast } = useToast();
-  const { user, profile, supportEmail, loading: authLoading, signOut } = useAuth();
-  const isAdmin = profile?.role === 'owner' || profile?.role === 'admin';
-  const { domainIds, domainNames, accessByDomainId } = useUserDomainAccess(user?.id ?? null);
-  const { domains } = useDomains(isAdmin ? undefined : domainIds);
+  const { domains } = useDomains();
   const { 
     emails, 
     loading, 
@@ -61,29 +55,12 @@ const Index = () => {
     moveToTrash, 
     archiveEmail,
     sendEmail 
-  } = useEmails(activeFolder, isAdmin ? undefined : domainNames);
-
-  const userInitials = useMemo(() => {
-    if (profile?.display_name) {
-      return profile.display_name
-        .split(' ')
-        .map((part) => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
-    }
-    return user?.email?.[0]?.toUpperCase() ?? 'U';
-  }, [profile?.display_name, user?.email]);
+  } = useEmails(activeFolder);
 
   // Fetch all email addresses with their domains
   useEffect(() => {
     const fetchAllAddresses = async () => {
-      if (!isAdmin && domainIds.length === 0) {
-        setAllEmailAddresses([]);
-        return;
-      }
-
-      let query = supabase
+      const { data, error } = await supabase
         .from('email_addresses')
         .select(`
           id,
@@ -93,12 +70,6 @@ const Index = () => {
           email_domains!inner(domain)
         `)
         .eq('status', 'active');
-
-      if (!isAdmin && domainIds.length > 0) {
-        query = query.in('domain_id', domainIds);
-      }
-      
-      const { data, error } = await query;
       
       if (!error && data) {
         const addresses = data.map((addr: any) => ({
@@ -113,7 +84,7 @@ const Index = () => {
     };
     
     fetchAllAddresses();
-  }, [domains, domainIds, isAdmin]);
+  }, [domains]);
 
   useEffect(() => {
     if (!error) return;
@@ -128,17 +99,6 @@ const Index = () => {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
   }, [isDark]);
-
-  useEffect(() => {
-    if (isAdmin) return;
-    if (domainIds.length === 0) {
-      setActiveDomainId(null);
-      return;
-    }
-    if (!activeDomainId || !domainIds.includes(activeDomainId)) {
-      setActiveDomainId(domainIds[0]);
-    }
-  }, [domainIds, activeDomainId, isAdmin]);
 
   // Get active domain
   const activeDomain = domains.find(d => d.id === activeDomainId);
@@ -264,18 +224,6 @@ const Index = () => {
     setIsComposeOpen(true);
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
-        Loading your workspace...
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <AuthScreen />;
-  }
-
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Top Header Bar - Gmail style */}
@@ -352,53 +300,13 @@ const Index = () => {
           <Button variant="ghost" size="icon" onClick={() => setIsDark(!isDark)} className="h-10 w-10 text-muted-foreground hover:text-foreground">
             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Avatar className="w-8 h-8 ml-2 cursor-pointer">
-                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
-                  {userInitials}
-                </AvatarFallback>
-              </Avatar>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <div className="px-2 py-1 text-xs text-muted-foreground">
-                {profile?.display_name ?? user.email}
-              </div>
-              {supportEmail && (
-                <div className="px-2 pb-1 text-xs text-muted-foreground">
-                  Support: <a className="text-primary hover:underline" href={`mailto:${supportEmail}`}>{supportEmail}</a>
-                </div>
-              )}
-              {isAdmin && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => window.location.assign('/admin')}>
-                    <Shield className="w-4 h-4 mr-2" />
-                    Admin Panel
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Avatar className="w-8 h-8 ml-2 cursor-pointer">
+            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
+              U
+            </AvatarFallback>
+          </Avatar>
         </div>
       </header>
-
-      {supportEmail && (
-        <div className="px-4 py-2 text-xs sm:text-sm bg-muted text-muted-foreground border-b border-border flex items-center justify-between">
-          <span>
-            Need more mailboxes? Contact support at{' '}
-            <a className="text-primary hover:underline" href={`mailto:${supportEmail}`}>
-              {supportEmail}
-            </a>
-            .
-          </span>
-        </div>
-      )}
 
       {/* Main Layout */}
       <div className="flex-1 flex min-h-0">
@@ -444,10 +352,6 @@ const Index = () => {
             <DomainSettings 
               onClose={() => setIsSettingsOpen(false)} 
               webhookUrl={webhookUrl}
-              canManageDomains={isAdmin}
-              allowedDomainIds={isAdmin ? undefined : domainIds}
-              domainAccessById={isAdmin ? undefined : accessByDomainId}
-              currentUserId={user?.id ?? null}
             />
           ) : (
             <div className="flex-1 flex min-h-0">
