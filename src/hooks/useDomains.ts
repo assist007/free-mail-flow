@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, EmailDomain, EmailAddress } from '@/integrations/supabase/client';
 
-export function useDomains() {
+export function useDomains(domainIds?: string[]) {
   const [domains, setDomains] = useState<EmailDomain[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -9,10 +9,16 @@ export function useDomains() {
   const fetchDomains = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error: fetchError } = await supabase
-        .from('email_domains')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let query = supabase.from('email_domains').select('*').order('created_at', { ascending: false });
+      if (domainIds && domainIds.length > 0) {
+        query = query.in('id', domainIds);
+      } else if (domainIds && domainIds.length === 0) {
+        setDomains([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
       setDomains((data as EmailDomain[]) || []);
@@ -21,7 +27,7 @@ export function useDomains() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [domainIds]);
 
   useEffect(() => {
     fetchDomains();
@@ -81,7 +87,7 @@ export function useDomains() {
   };
 }
 
-export function useEmailAddresses(domainId?: string) {
+export function useEmailAddresses(domainId?: string, createdBy?: string | null) {
   const [addresses, setAddresses] = useState<EmailAddress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -94,11 +100,17 @@ export function useEmailAddresses(domainId?: string) {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('email_addresses')
         .select('*')
         .eq('domain_id', domainId)
         .order('created_at', { ascending: false });
+
+      if (createdBy) {
+        query = query.eq('created_by', createdBy);
+      }
+
+      const { data, error } = await query;
 
       if (!error) {
         setAddresses((data as EmailAddress[]) || []);
@@ -106,7 +118,7 @@ export function useEmailAddresses(domainId?: string) {
     } finally {
       setLoading(false);
     }
-  }, [domainId]);
+  }, [domainId, createdBy]);
 
   useEffect(() => {
     fetchAddresses();
@@ -123,6 +135,7 @@ export function useEmailAddresses(domainId?: string) {
         display_name: displayName,
         is_catch_all: isCatchAll,
         status: 'pending',
+        ...(createdBy ? { created_by: createdBy } : {}),
       } as any)
       .select()
       .single();
