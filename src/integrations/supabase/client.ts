@@ -31,6 +31,11 @@ export type Email = {
   received_at: string
   created_at: string
   updated_at: string
+  tenant_id: string | null
+  owner_id: string | null
+  email_address_id: string | null
+  deleted_at: string | null
+  deleted_by: string | null
 }
 
 export type EmailInsert = {
@@ -56,6 +61,11 @@ export type EmailInsert = {
   received_at?: string
   created_at?: string
   updated_at?: string
+  tenant_id?: string | null
+  owner_id?: string | null
+  email_address_id?: string | null
+  deleted_at?: string | null
+  deleted_by?: string | null
 }
 
 export type EmailUpdate = {
@@ -71,6 +81,7 @@ export type EmailUpdate = {
   message_id?: string | null
   in_reply_to?: string | null
   references?: string[] | null
+  thread_id?: string | null
   is_read?: boolean
   is_starred?: boolean
   is_archived?: boolean
@@ -80,60 +91,85 @@ export type EmailUpdate = {
   received_at?: string
   created_at?: string
   updated_at?: string
+  tenant_id?: string | null
+  owner_id?: string | null
+  email_address_id?: string | null
+  deleted_at?: string | null
+  deleted_by?: string | null
 }
 
 export type EmailAttachment = {
   id: string
-  email_id: string
+  email_id: string | null
   filename: string
   content_type: string
   size: number
   storage_path: string
-  created_at: string
+  created_at: string | null
 }
 
 export type EmailDomain = {
   id: string
   domain: string
-  is_verified: boolean
+  is_verified: boolean | null
   mx_record: string | null
   txt_record: string | null
   webhook_secret: string | null
-  created_at: string
-  updated_at: string
+  created_at: string | null
+  updated_at: string | null
 }
 
 export type EmailDomainInsert = {
   id?: string
   domain: string
-  is_verified?: boolean
+  is_verified?: boolean | null
   mx_record?: string | null
   txt_record?: string | null
   webhook_secret?: string | null
-  created_at?: string
-  updated_at?: string
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export type EmailAddress = {
   id: string
-  domain_id: string
+  domain_id: string | null
   local_part: string
   display_name: string | null
-  is_catch_all: boolean
-  status: 'pending' | 'active'
+  is_catch_all: boolean | null
+  status: string | null
   first_received_at: string | null
-  created_at: string
+  created_at: string | null
+  tenant_id: string | null
+  owner_type: 'admin' | 'user' | null
+  owner_id: string | null
+  created_by: string | null
+  deleted_at: string | null
+  deleted_by: string | null
+  mail_count: number | null
+  last_mail_at: string | null
+  bounce_count: number | null
+  last_bounce_at: string | null
 }
 
 export type EmailAddressInsert = {
   id?: string
-  domain_id: string
+  domain_id?: string | null
   local_part: string
   display_name?: string | null
-  is_catch_all?: boolean
-  status?: 'pending' | 'active'
+  is_catch_all?: boolean | null
+  status?: string | null
   first_received_at?: string | null
-  created_at?: string
+  created_at?: string | null
+  tenant_id?: string | null
+  owner_type?: 'admin' | 'user' | null
+  owner_id?: string | null
+  created_by?: string | null
+  deleted_at?: string | null
+  deleted_by?: string | null
+  mail_count?: number | null
+  last_mail_at?: string | null
+  bounce_count?: number | null
+  last_bounce_at?: string | null
 }
 
 const DEFAULT_SUPABASE_URL = "https://zlfqfdnkcxfjvwkoxaqa.supabase.co";
