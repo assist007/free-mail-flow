@@ -172,6 +172,22 @@ export type EmailAddressInsert = {
   last_bounce_at?: string | null
 }
 
+export type TenantMember = {
+  id: string
+  tenant_id: string
+  user_id: string
+  role: string
+  created_at: string | null
+}
+
+export type TenantMemberInsert = {
+  id?: string
+  tenant_id: string
+  user_id: string
+  role?: string
+  created_at?: string | null
+}
+
 const DEFAULT_SUPABASE_URL = "https://zlfqfdnkcxfjvwkoxaqa.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpsZnFmZG5rY3hmanZ3a294YXFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1MjA1MTIsImV4cCI6MjA4MzA5NjUxMn0.t8tqVqokc5fHyyeMjNtddUl_9npUkxGC464p_QaYNn0";
